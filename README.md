@@ -1,26 +1,26 @@
 # Shopier
 
-Herramienta estática para convertir historial de compras domésticas en una lista predictiva.
+Static tool to turn household purchase history into a predictive shopping list.
 
-## Uso
+## Usage
 
-Abrí `index.html` en el navegador. No requiere instalación ni servidor.
+Open `index.html` in your browser. No installation or server required.
 
-## Qué incluye
+## Features
 
-- Entrada rápida en lenguaje natural.
-- Modos de compra: auto, normal, parrilla, saludable y merienda.
-- Lista organizada por sectores del supermercado.
-- Predicción de agotamiento por frecuencia estimada.
-- Ranking de productos más comprados.
-- Productos ancla para sugerencias asociadas.
-- Métricas simples de hábitos.
+- Fast natural-language input.
+- Shopping modes: auto, normal, grill, healthy, and snack.
+- List organized by supermarket sections.
+- Depletion prediction based on estimated frequency.
+- Ranking of most-purchased products.
+- Anchor products for associated suggestions.
+- Simple habit metrics.
 
-## Datos
+## Data
 
-Los productos, alias, sectores, frecuencias y compras históricas están en `app.js`.
-Para adaptarlo a tu historial real, editá:
+Products, aliases, sections, frequencies, and purchase history are in `app.js`.
+To adapt it to your real purchase history, edit:
 
-- `catalog`: productos, marcas, alias y cadencia de reposición.
-- `modes`: listas base por modo de vida.
-- `history`: compras pasadas usadas para ranking y predicción.
+- `catalog`: products, brands, aliases, and replenishment cadence.
+- `modes`: base lists per lifestyle mode.
+- `history`: past purchases used for ranking and prediction.

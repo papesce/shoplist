@@ -1,4 +1,4 @@
-export interface Entrada {
+export interface Entry {
   original: string;
   linea: number;
   categoria?: string;
@@ -12,15 +12,15 @@ export interface ShoppingItem {
   categoria?: string;
 }
 
-export interface Resumen {
+export interface Summary {
   total: number;
-  conCantidad: number;
-  soloTexto: number;
+  withQuantity: number;
+  textOnly: number;
 }
 
-export type ListaGuardada = {
+export type SavedList = {
   id: string;
-  nombre: string;
-  fecha: string;
+  name: string;
+  date: string;
   items: ShoppingItem[];
 };

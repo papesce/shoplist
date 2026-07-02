@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
-import type { Entrada, ShoppingItem, Resumen } from "./types";
+import type { Entry, ShoppingItem, Summary } from "./types";
 
 const STORAGE_KEY = "shopier-productos";
 const SHOPPING_KEY = "shopier-lista";
@@ -11,7 +11,7 @@ type ToastAction = {
   timeoutId: ReturnType<typeof setTimeout>;
 };
 
-const CATEGORIAS = [
+const CATEGORIES = [
   "Almacén",
   "Bebidas",
   "Carnicería",
@@ -31,12 +31,12 @@ function uid() {
   return String(nextId++);
 }
 
-function calcularResumen(lista: Entrada[]): Resumen {
-  const conCantidad = lista.filter((e) => /^[\d.,/]/.test(e.original)).length;
+function calcSummary(list: Entry[]): Summary {
+  const withQuantity = list.filter((e) => /^[\d.,/]/.test(e.original)).length;
   return {
-    total: lista.length,
-    conCantidad,
-    soloTexto: lista.length - conCantidad,
+    total: list.length,
+    withQuantity,
+    textOnly: list.length - withQuantity,
   };
 }
 
@@ -49,7 +49,7 @@ function highlight(text: string, query: string) {
   );
 }
 
-function cargarJSON<T>(key: string, fallback: T): T {
+function loadJSON<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
@@ -60,7 +60,7 @@ function cargarJSON<T>(key: string, fallback: T): T {
 
 export default function App() {
   const [search, setSearch] = useState("");
-  const [entries, setEntries] = useState<Entrada[]>(() => cargarJSON<Entrada[]>(STORAGE_KEY, []));
+  const [entries, setEntries] = useState<Entry[]>(() => loadJSON<Entry[]>(STORAGE_KEY, []));
   const [loading, setLoading] = useState(entries.length === 0);
   const [fetchError, setFetchError] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -69,16 +69,16 @@ export default function App() {
   const [saved, setSaved] = useState(false);
 
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(
-    () => cargarJSON<ShoppingItem[]>(SHOPPING_KEY, [])
+    () => loadJSON<ShoppingItem[]>(SHOPPING_KEY, [])
   );
   const [addMsg, setAddMsg] = useState("");
   const [copied, setCopied] = useState(false);
   const [toasts, setToasts] = useState<ToastAction[]>([]);
   const [unifyConfirm, setUnifyConfirm] = useState(false);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [agruparCategorias, setAgruparCategorias] = useState(true);
-  const [filtroCategoria, setFiltroCategoria] = useState("");
-  const [categoriaMsg, setCategoriaMsg] = useState("");
+  const [groupByCategory, setGroupByCategory] = useState(true);
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [categoryMsg, setCategoryMsg] = useState("");
   const [catPopover, setCatPopover] = useState<string | null>(null);
   const [catPopoverPos, setCatPopoverPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
 
@@ -137,7 +137,7 @@ export default function App() {
         return r.json();
       })
       .then((data) => {
-        const list = Array.isArray(data) ? (data as Entrada[]) : [];
+        const list = Array.isArray(data) ? (data as Entry[]) : [];
         setEntries(list);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
         setLoading(false);
@@ -145,7 +145,7 @@ export default function App() {
       .catch(() => {
         import("../base/productos.json")
           .then((mod) => {
-            const list = (Array.isArray(mod.default) ? mod.default : []) as Entrada[];
+            const list = (Array.isArray(mod.default) ? mod.default : []) as Entry[];
             setEntries(list);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
             setLoading(false);
@@ -189,20 +189,20 @@ export default function App() {
     if (q) {
       result = result.filter((e) => e.original.toLowerCase().includes(q));
     }
-    if (filtroCategoria) {
-      result = result.filter((e) => e.categoria === filtroCategoria);
+    if (categoryFilter) {
+      result = result.filter((e) => e.categoria === categoryFilter);
     }
     return result;
-  }, [search, filtroCategoria, entries]);
+  }, [search, categoryFilter, entries]);
 
-  const resumen = useMemo(() => calcularResumen(entries), [entries]);
+  const summary = useMemo(() => calcSummary(entries), [entries]);
 
-  const categoriasActivas = useMemo(
-    () => CATEGORIAS.filter((cat) => entries.some((e) => e.categoria === cat)),
+  const activeCategories = useMemo(
+    () => CATEGORIES.filter((cat) => entries.some((e) => e.categoria === cat)),
     [entries]
   );
 
-  const assignCategoria = useCallback(
+  const assignCategory = useCallback(
     (cat: string) => {
       if (selected.size === 0) return;
       setEntries((prev) => {
@@ -217,15 +217,15 @@ export default function App() {
           selected.has(item.linea) ? { ...item, categoria: cat } : item
         )
       );
-      setCategoriaMsg(
-        `Categoría "${cat}" asignada a ${selected.size} entrada${selected.size !== 1 ? "s" : ""}`
+      setCategoryMsg(
+        `Category "${cat}" assigned to ${selected.size} entr${selected.size !== 1 ? "ies" : "y"}`
       );
-      setTimeout(() => setCategoriaMsg(""), 2000);
+      setTimeout(() => setCategoryMsg(""), 2000);
     },
     [selected]
   );
 
-  const setCategoriaItem = useCallback(
+  const setCategoryItem = useCallback(
     (linea: number, cat: string) => {
       setEntries((prev) => {
         const next = prev.map((e) => e.linea === linea ? { ...e, categoria: cat } : e);
@@ -278,7 +278,7 @@ export default function App() {
       ...prev,
     ]);
     setSelected(new Set());
-    setAddMsg(`Agregados ${items.length} item${items.length > 1 ? "s" : ""}`);
+    setAddMsg(`Added ${items.length} item${items.length > 1 ? "s" : ""}`);
     setTimeout(() => setAddMsg(""), 2000);
   }, [entries, filteredSelected]);
 
@@ -295,7 +295,7 @@ export default function App() {
         if (!item) return prev;
         const next = prev.filter((i) => i.id !== id);
         pushToast(
-          `"${item.original}" quitado de la lista`,
+          `"${item.original}" removed from list`,
           () => setShoppingList((p) => [...p, item])
         );
         return next;
@@ -304,27 +304,27 @@ export default function App() {
     [pushToast]
   );
 
-  const clearCheckedShopping = useCallback(() => {
+  const clearCheckedItems = useCallback(() => {
     setShoppingList((prev) => {
       const removed = prev.filter((i) => i.checked);
       if (!removed.length) return prev;
       pushToast(
-        `${removed.length} producto${removed.length > 1 ? "s" : ""} tachado${removed.length > 1 ? "s" : ""} quitado${removed.length > 1 ? "s" : ""}`,
+        `${removed.length} checked item${removed.length > 1 ? "s" : ""} removed`,
         () => setShoppingList((p) => [...p, ...removed])
       );
       return prev.filter((i) => !i.checked);
     });
   }, [pushToast]);
 
-  const descargarLista = useCallback(() => {
+  const downloadList = useCallback(() => {
     const now = new Date();
     const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
-    const data = { fecha: now.toISOString(), items: shoppingList };
+    const data = { date: now.toISOString(), items: shoppingList };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `lista-super-${ts}.json`;
+    a.download = `shopping-list-${ts}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }, [shoppingList]);
@@ -366,30 +366,30 @@ export default function App() {
     setDragOverIndex(null);
   }, []);
 
-  const shoppingAgrupado = useMemo(() => {
-    if (!agruparCategorias) return null;
+  const shoppingGrouped = useMemo(() => {
+    if (!groupByCategory) return null;
     const map = new Map<string, ShoppingItem[]>();
     for (const item of shoppingList) {
-      const cat = item.categoria || "Sin categoría";
+      const cat = item.categoria || "Uncategorized";
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat)!.push(item);
     }
-    const grupos: [string, ShoppingItem[]][] = [];
-    for (const cat of CATEGORIAS) {
+    const groups: [string, ShoppingItem[]][] = [];
+    for (const cat of CATEGORIES) {
       if (map.has(cat)) {
-        grupos.push([cat, map.get(cat)!]);
+        groups.push([cat, map.get(cat)!]);
         map.delete(cat);
       }
     }
     for (const [cat, items] of map) {
-      grupos.push([cat, items]);
+      groups.push([cat, items]);
     }
-    return grupos;
-  }, [agruparCategorias, shoppingList]);
+    return groups;
+  }, [groupByCategory, shoppingList]);
 
   const copyShoppingList = useCallback(async () => {
-    const text = (agruparCategorias && shoppingAgrupado
-      ? shoppingAgrupado.flatMap(([, items]) => items)
+    const text = (groupByCategory && shoppingGrouped
+      ? shoppingGrouped.flatMap(([, items]) => items)
       : shoppingList
     )
       .filter((item) => !item.checked)
@@ -401,9 +401,9 @@ export default function App() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      alert("No se pudo copiar al portapapeles");
+      alert("Could not copy to clipboard");
     }
-  }, [shoppingList, agruparCategorias, shoppingAgrupado]);
+  }, [shoppingList, groupByCategory, shoppingGrouped]);
 
   const unify = useCallback(() => {
     if (canonical === null || selected.size < 2) return;
@@ -465,7 +465,7 @@ export default function App() {
 
     const n = toRemove.size;
     pushToast(
-      `Eliminadas ${n} entrada${n !== 1 ? "s" : ""} fuera de la selección`,
+      `Removed ${n} entr${n !== 1 ? "ies" : "y"} outside selection`,
       () => {
         setEntries((prev) => {
           const next = [...prev, ...removedEntries];
@@ -492,7 +492,7 @@ export default function App() {
     setSelected(new Set());
 
     pushToast(
-      `${n} entrada${n > 1 ? "s" : ""} eliminada${n > 1 ? "s" : ""}`,
+      `${n} entr${n > 1 ? "ies" : "y"} deleted`,
       () => {
         setEntries((prev) => {
           const next = [...prev, ...removedEntries];
@@ -518,13 +518,13 @@ export default function App() {
     setTimeout(() => setSaved(false), 2500);
   }, [entries]);
 
-  const pendientes = shoppingList.filter((item) => !item.checked).length;
+  const pending = shoppingList.filter((item) => !item.checked).length;
 
   if (loading) {
     return (
       <div className="app-full-center">
         <h1>Shoplist</h1>
-        <p>Cargando base de datos…</p>
+        <p>Loading database…</p>
       </div>
     );
   }
@@ -533,9 +533,9 @@ export default function App() {
     return (
       <div className="app-full-center">
         <h1>Shoplist</h1>
-        <p>No se pudo cargar la base de datos.</p>
-        <p>Ejecutá <code>npm run parse</code> para generar <code>base/productos.json</code></p>
-        <button onClick={() => window.location.reload()}>Reintentar</button>
+        <p>Could not load the database.</p>
+        <p>Run <code>npm run parse</code> to generate <code>base/productos.json</code></p>
+        <button onClick={() => window.location.reload()}>Retry</button>
       </div>
     );
   }
@@ -544,7 +544,7 @@ export default function App() {
     return (
       <div className="app-full-center">
         <h1>Shoplist</h1>
-        <p>No hay productos cargados. Ejecutá <code>npm run parse</code> para generar la base.</p>
+        <p>No products loaded. Run <code>npm run parse</code> to generate the database.</p>
       </div>
     );
   }
@@ -553,13 +553,13 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div>
-          <p className="eyebrow">ERP doméstico</p>
+          <p className="eyebrow">Home ERP</p>
           <h1>Shoplist</h1>
         </div>
         <div className="status-strip">
-          <span><strong>{resumen.total}</strong> entradas</span>
-          <span><strong>{resumen.conCantidad}</strong> con cantidad</span>
-          <span><strong>{shoppingList.length}</strong> en lista</span>
+          <span><strong>{summary.total}</strong> entries</span>
+          <span><strong>{summary.withQuantity}</strong> with quantity</span>
+          <span><strong>{shoppingList.length}</strong> in list</span>
         </div>
       </header>
 
@@ -568,7 +568,7 @@ export default function App() {
           <div className="search-bar">
             <input
               type="search"
-              placeholder="Buscar productos…"
+              placeholder="Search products…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               autoFocus
@@ -576,19 +576,19 @@ export default function App() {
             <span className="result-count">{filtered.length}</span>
           </div>
 
-          {categoriasActivas.length > 0 && (
+          {activeCategories.length > 0 && (
             <div className="cat-chips">
               <button
-                className={"cat-chip" + (!filtroCategoria ? " active" : "")}
-                onClick={() => setFiltroCategoria("")}
+                className={"cat-chip" + (!categoryFilter ? " active" : "")}
+                onClick={() => setCategoryFilter("")}
               >
-                Todas
+                All
               </button>
-              {categoriasActivas.map((cat) => (
+              {activeCategories.map((cat) => (
                 <button
                   key={cat}
-                  className={"cat-chip" + (filtroCategoria === cat ? " active" : "")}
-                  onClick={() => setFiltroCategoria(filtroCategoria === cat ? "" : cat)}
+                  className={"cat-chip" + (categoryFilter === cat ? " active" : "")}
+                  onClick={() => setCategoryFilter(categoryFilter === cat ? "" : cat)}
                 >
                   {cat}
                 </button>
@@ -602,21 +602,21 @@ export default function App() {
                 disabled={filteredSelectedCount === 0}
                 onClick={addToShoppingList}
               >
-                ➕ Agregar {filteredSelectedCount > 0 ? `(${filteredSelectedCount})` : ""} a la lista
+                ➕ Add {filteredSelectedCount > 0 ? `(${filteredSelectedCount})` : ""} to list
               </button>
               {addMsg && <span className="add-msg">{addMsg}</span>}
               {filteredSelectedCount > 0 && (
                 <>
                   <button className="btn-del-view" onClick={deleteSelected}>
-                    🗑️ Eliminar ({filteredSelectedCount})
+                    🗑️ Delete ({filteredSelectedCount})
                   </button>
                   {canKeepSelected && (
                     <button className="btn-keep" onClick={keepSelected}>
-                      🔁 Quedarse con {filteredSelectedCount} (eliminar {filtered.length - filteredSelectedCount})
+                      🔁 Keep {filteredSelectedCount} (remove {filtered.length - filteredSelectedCount})
                     </button>
                   )}
                   <button className="ghost" onClick={() => { setSelected(new Set()); setCanonical(null); setCanonicalInput(""); }}>
-                    Limpiar
+                    Clear
                   </button>
                 </>
               )}
@@ -628,7 +628,7 @@ export default function App() {
                   <input
                     ref={inputRef}
                     type="text"
-                    placeholder="Nombre canónico…"
+                    placeholder="Canonical name…"
                     value={canonicalInput}
                     onChange={(e) => setCanonicalInput(e.target.value)}
                   />
@@ -636,19 +636,19 @@ export default function App() {
                 <select
                   className="cat-select"
                   defaultValue=""
-                  onChange={(e) => assignCategoria(e.target.value)}
+                  onChange={(e) => assignCategory(e.target.value)}
                 >
-                  <option value="" disabled>Categoría…</option>
-                  {CATEGORIAS.map((cat) => (
+                  <option value="" disabled>Category…</option>
+                  {CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
                 </select>
-                {categoriaMsg && <span className="cat-msg">{categoriaMsg}</span>}
+                {categoryMsg && <span className="cat-msg">{categoryMsg}</span>}
                 <button className="btn-unify" disabled={!canUnify} onClick={unify}>
-                  🗑️ Unificar {canUnify ? `(${selectedCount})` : ""}
+                  🗑️ Unify {canUnify ? `(${selectedCount})` : ""}
                 </button>
                 <button className="ghost" onClick={downloadJSON}>
-                  📥 {saved ? "¡Descargado!" : "Guardar"}
+                  📥 {saved ? "Downloaded!" : "Save"}
                 </button>
               </div>
             )}
@@ -657,7 +657,7 @@ export default function App() {
           <div className="entry-list">
             {filtered.length === 0 ? (
               <div className="empty small">
-                <p>No se encontraron entradas para <strong>"{search}"</strong></p>
+                <p>No entries found for <strong>"{search}"</strong></p>
               </div>
             ) : (
               filtered.map((e) => {
@@ -680,7 +680,7 @@ export default function App() {
                       <button
                         className="entry-radio"
                         onClick={() => setAsCanonical(e.linea)}
-                        title="Fijar como canónica"
+                        title="Set as canonical"
                       >
                         {isCanonical ? "★" : "☆"}
                       </button>
@@ -695,11 +695,11 @@ export default function App() {
                     <button
                       className={"cat-badge" + (e.categoria ? "" : " cat-badge-empty")}
                       onClick={(ev) => { ev.stopPropagation(); openCatPopover(`db-${e.linea}`, ev.currentTarget); }}
-                      title="Cambiar categoría"
+                      title="Change category"
                     >
                       {e.categoria || "·"}
                     </button>
-                    {isCanonical && <span className="tag">canónica</span>}
+                    {isCanonical && <span className="tag">canonical</span>}
                   </article>
                 );
               })
@@ -712,41 +712,41 @@ export default function App() {
         <div className="panel panel-list" style={{ flex: "1 1 0", minWidth: 0 }}>
           <div className="panel-header">
             <div>
-              <p className="eyebrow">Lista del super</p>
-              <h2>{pendientes} pendiente{pendientes !== 1 ? "s" : ""}</h2>
+              <p className="eyebrow">Shopping list</p>
+              <h2>{pending} pending item{pending !== 1 ? "s" : ""}</h2>
             </div>
             <div className="panel-header-actions">
               <div className="view-toggle">
                 <button
-                  className={"ghost" + (!agruparCategorias ? " active" : "")}
-                  onClick={() => setAgruparCategorias(false)}
-                  title="Lista libre"
+                  className={"ghost" + (!groupByCategory ? " active" : "")}
+                  onClick={() => setGroupByCategory(false)}
+                  title="Free list"
                 >
                   ☰
                 </button>
                 <button
-                  className={"ghost" + (agruparCategorias ? " active" : "")}
-                  onClick={() => setAgruparCategorias(true)}
-                  title="Agrupar por categoría"
+                  className={"ghost" + (groupByCategory ? " active" : "")}
+                  onClick={() => setGroupByCategory(true)}
+                  title="Group by category"
                 >
                   ▤
                 </button>
               </div>
-              <button onClick={copyShoppingList} disabled={pendientes === 0}>
-                {copied ? "✅ Copiadas" : "📋 Copiar lista"}
+              <button onClick={copyShoppingList} disabled={pending === 0}>
+                {copied ? "✅ Copied" : "📋 Copy list"}
               </button>
               <button
                 className="ghost"
-                onClick={clearCheckedShopping}
+                onClick={clearCheckedItems}
                 disabled={shoppingList.filter((i) => i.checked).length === 0}
               >
-                🗑️ Quitar tachados
+                🗑️ Remove checked
               </button>
               <button
                 className="ghost"
-                onClick={descargarLista}
+                onClick={downloadList}
                 disabled={shoppingList.length === 0}
-                title="Descargar lista"
+                title="Download list"
               >
                 💾
               </button>
@@ -756,10 +756,10 @@ export default function App() {
           <div className="entry-list">
             {shoppingList.length === 0 ? (
               <div className="empty small">
-                <p>Buscá productos en la base y agregalos con ➕</p>
+                <p>Search for products in the database and add them with ➕</p>
               </div>
-            ) : shoppingAgrupado ? (
-              shoppingAgrupado.map(([cat, items]) => (
+            ) : shoppingGrouped ? (
+              shoppingGrouped.map(([cat, items]) => (
                 <div key={cat} className="group-section">
                   <div className="group-header">{cat} <span className="group-count">{items.length}</span></div>
                   {items.map((item) => (
@@ -774,7 +774,7 @@ export default function App() {
                       <button
                         className="entry-remove"
                         onClick={() => removeShoppingItem(item.id)}
-                        title="Quitar de la lista"
+                        title="Remove from list"
                       >
                         ✕
                       </button>
@@ -810,7 +810,7 @@ export default function App() {
                   <button
                     className="entry-remove"
                     onClick={() => removeShoppingItem(item.id)}
-                    title="Quitar de la lista"
+                    title="Remove from list"
                   >
                     ✕
                   </button>
@@ -825,15 +825,15 @@ export default function App() {
         <div className="modal-overlay" onClick={() => setUnifyConfirm(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <p className="modal-msg">
-              ¿Unificar <strong>{selected.size}</strong> entradas como{" "}
-              <strong>"{canonicalInput.trim()}"</strong>? Las demás se eliminarán.
+              Unify <strong>{selected.size}</strong> entries as{" "}
+              <strong>"{canonicalInput.trim()}"</strong>? The others will be deleted.
             </p>
             <div className="modal-actions">
               <button className="ghost" onClick={() => setUnifyConfirm(false)}>
-                Cancelar
+                Cancel
               </button>
               <button className="btn-unify" onClick={confirmUnify}>
-                Unificar
+                Unify
               </button>
             </div>
           </div>
@@ -848,16 +848,16 @@ export default function App() {
         >
           <button className="cat-pop-item cat-pop-clear" onClick={() => {
             const linea = parseInt(catPopover.replace(/^(db|sl)-/, ""));
-            setCategoriaItem(linea, "");
+            setCategoryItem(linea, "");
             setCatPopover(null);
-          }}>sin categoría</button>
-          {CATEGORIAS.map((c) => (
+          }}>no category</button>
+          {CATEGORIES.map((c) => (
             <button
               key={c}
               className="cat-pop-item"
               onClick={() => {
                 const linea = parseInt(catPopover.replace(/^(db|sl)-/, ""));
-                setCategoriaItem(linea, c);
+                setCategoryItem(linea, c);
                 setCatPopover(null);
               }}
             >{c}</button>
@@ -876,7 +876,7 @@ export default function App() {
                 dismissToast(t.id);
               }}
             >
-              Deshacer
+              Undo
             </button>
             <button className="toast-close" onClick={() => dismissToast(t.id)}>
               ✕
