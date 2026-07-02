@@ -560,6 +560,7 @@ export default function App() {
           <span><strong>{summary.total}</strong> entries</span>
           <span><strong>{summary.withQuantity}</strong> with quantity</span>
           <span><strong>{shoppingList.length}</strong> in list</span>
+          <button className="ghost" onClick={downloadJSON} title="Export product database">💾 DB</button>
         </div>
       </header>
 
@@ -646,9 +647,6 @@ export default function App() {
                 {categoryMsg && <span className="cat-msg">{categoryMsg}</span>}
                 <button className="btn-unify" disabled={!canUnify} onClick={unify}>
                   🗑️ Unify {canUnify ? `(${selectedCount})` : ""}
-                </button>
-                <button className="ghost" onClick={downloadJSON}>
-                  📥 {saved ? "Downloaded!" : "Save"}
                 </button>
               </div>
             )}

@@ -1,4 +1,4 @@
-# Shopier
+# Shoplist
 
 Static tool to turn household purchase history into a predictive shopping list.
 
