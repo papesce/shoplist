@@ -840,6 +840,44 @@ h2 {
   gap: 8px;
 }
 
+.modal-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.modal-input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #cad2cc;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fbfcfa;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.modal-input:focus {
+  border-color: var(--accent);
+  outline: 3px solid rgba(15, 118, 110, 0.16);
+}
+
+.modal-select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #cad2cc;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fbfcfa;
+  color: var(--ink);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.modal-select:focus {
+  border-color: var(--accent);
+  outline: 3px solid rgba(15, 118, 110, 0.16);
+}
+
 @keyframes fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }

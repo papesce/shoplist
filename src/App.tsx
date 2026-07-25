@@ -81,6 +81,10 @@ export default function App() {
   const [categoryMsg, setCategoryMsg] = useState("");
   const [catPopover, setCatPopover] = useState<string | null>(null);
   const [catPopoverPos, setCatPopoverPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newProductName, setNewProductName] = useState("");
+  const [newProductCategory, setNewProductCategory] = useState("");
+  const [clearAllConfirm, setClearAllConfirm] = useState(false);
 
   const openCatPopover = useCallback((id: string, btn: HTMLButtonElement) => {
     const r = btn.getBoundingClientRect();
@@ -88,6 +92,7 @@ export default function App() {
     setCatPopover((prev) => (prev === id ? null : id));
   }, []);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [leftPct, setLeftPct] = useState(50);
   const panelsRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
@@ -239,6 +244,38 @@ export default function App() {
     []
   );
 
+  const openAddModal = useCallback((prefillName?: string) => {
+    setNewProductName(prefillName ?? "");
+    setNewProductCategory("");
+    setShowAddModal(true);
+  }, []);
+
+  const addNewProduct = useCallback(() => {
+    const name = newProductName.trim();
+    if (!name) return;
+    const maxLinea = entries.reduce((max, e) => Math.max(max, e.linea), 0);
+    const newEntry: Entry = {
+      original: name,
+      linea: maxLinea + 1,
+      ...(newProductCategory ? { categoria: newProductCategory } : {}),
+    };
+    setEntries((prev) => {
+      const next = [...prev, newEntry];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+    setShowAddModal(false);
+    setNewProductName("");
+    setNewProductCategory("");
+    pushToast(`"${name}" added to database`, () => {
+      setEntries((prev) => {
+        const next = prev.filter((e) => e.linea !== newEntry.linea);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
+    });
+  }, [newProductName, newProductCategory, entries, pushToast]);
+
   const filteredSelected = useMemo(
     () => new Set([...selected].filter((l) => filtered.some((e) => e.linea === l))),
     [selected, filtered]
@@ -315,6 +352,63 @@ export default function App() {
       return prev.filter((i) => !i.checked);
     });
   }, [pushToast]);
+
+  const clearAllItems = useCallback(() => {
+    setClearAllConfirm(true);
+  }, []);
+
+  const confirmClearAll = useCallback(() => {
+    setClearAllConfirm(false);
+    const items = shoppingList;
+    if (!items.length) return;
+    setShoppingList([]);
+    pushToast(
+      `Cleared ${items.length} item${items.length > 1 ? "s" : ""} from list`,
+      () => setShoppingList(items)
+    );
+  }, [shoppingList, pushToast]);
+
+  const loadListFromFile = useCallback(() => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.value = "";
+    input.click();
+  }, []);
+
+  const handleFileLoad = useCallback(() => {
+    const input = fileInputRef.current;
+    if (!input || !input.files || !input.files[0]) return;
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result as string);
+        const items = Array.isArray(data?.items) ? data.items : [];
+        const valid = items.filter(
+          (item: unknown): item is ShoppingItem =>
+            typeof item === "object" &&
+            item !== null &&
+            typeof (item as ShoppingItem).id === "string" &&
+            typeof (item as ShoppingItem).original === "string" &&
+            typeof (item as ShoppingItem).linea === "number" &&
+            typeof (item as ShoppingItem).checked === "boolean"
+        );
+        if (!valid.length) {
+          pushToast("No valid items found in file", () => {});
+          return;
+        }
+        const prev = shoppingList;
+        setShoppingList(valid);
+        pushToast(
+          `Loaded ${valid.length} item${valid.length !== 1 ? "s" : ""} from file`,
+          () => setShoppingList(prev)
+        );
+      } catch {
+        pushToast("Invalid JSON file", () => {});
+      }
+    };
+    reader.readAsText(file);
+  }, [shoppingList, pushToast]);
 
   const downloadList = useCallback(() => {
     const now = new Date();
@@ -656,6 +750,7 @@ export default function App() {
             {filtered.length === 0 ? (
               <div className="empty small">
                 <p>No entries found for <strong>"{search}"</strong></p>
+                <button onClick={() => openAddModal(search)}>➕ Add "{search}" as new product</button>
               </div>
             ) : (
               filtered.map((e) => {
@@ -741,6 +836,13 @@ export default function App() {
                 🗑️ Remove checked
               </button>
               <button
+                className="ghost btn-clear-all"
+                onClick={clearAllItems}
+                disabled={shoppingList.length === 0}
+              >
+                🧹 Clear all
+              </button>
+              <button
                 className="ghost"
                 onClick={downloadList}
                 disabled={shoppingList.length === 0}
@@ -748,6 +850,20 @@ export default function App() {
               >
                 💾
               </button>
+              <button
+                className="ghost"
+                onClick={loadListFromFile}
+                title="Load list from file"
+              >
+                📂
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                style={{ display: "none" }}
+                onChange={handleFileLoad}
+              />
             </div>
           </div>
 
@@ -832,6 +948,59 @@ export default function App() {
               </button>
               <button className="btn-unify" onClick={confirmUnify}>
                 Unify
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddModal && (
+        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal-title">Add new product</h2>
+            <input
+              type="text"
+              className="modal-input"
+              placeholder="Product name…"
+              value={newProductName}
+              onChange={(e) => setNewProductName(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter") addNewProduct(); }}
+            />
+            <select
+              className="modal-select"
+              value={newProductCategory}
+              onChange={(e) => setNewProductCategory(e.target.value)}
+            >
+              <option value="">No category</option>
+              {CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+            <div className="modal-actions">
+              <button className="ghost" onClick={() => setShowAddModal(false)}>
+                Cancel
+              </button>
+              <button disabled={!newProductName.trim()} onClick={addNewProduct}>
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {clearAllConfirm && (
+        <div className="modal-overlay" onClick={() => setClearAllConfirm(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <p className="modal-msg">
+              Clear all <strong>{shoppingList.length}</strong> item{shoppingList.length !== 1 ? "s" : ""} from the list?
+            </p>
+            <div className="modal-actions">
+              <button className="ghost" onClick={() => setClearAllConfirm(false)}>
+                Cancel
+              </button>
+              <button className="btn-unify" onClick={confirmClearAll}>
+                Clear all
               </button>
             </div>
           </div>
