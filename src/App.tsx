@@ -1,4 +1,22 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
+import {
+  Undo2,
+  Download,
+  Pencil,
+  Plus,
+  Repeat,
+  Trash2,
+  X,
+  ClipboardCopy,
+  Check,
+  List,
+  LayoutGrid,
+  FolderOpen,
+  Ellipsis,
+  GripVertical,
+  Star,
+} from "lucide-react";
 import type { Entry, ShoppingItem, Summary } from "./types";
 
 const STORAGE_KEY = "shopier-productos";
@@ -93,6 +111,8 @@ function loadJSON<T>(key: string, fallback: T): T {
   }
 }
 
+const ENABLE_UNIFY = false;
+
 export default function App() {
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState<Entry[]>(() => loadJSON<Entry[]>(STORAGE_KEY, []));
@@ -101,7 +121,6 @@ export default function App() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [canonical, setCanonical] = useState<number | null>(null);
   const [canonicalInput, setCanonicalInput] = useState("");
-  const [saved, setSaved] = useState(false);
 
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(
     () => loadJSON<ShoppingItem[]>(SHOPPING_KEY, [])
@@ -124,6 +143,8 @@ export default function App() {
   const [shoppingMenuOpen, setShoppingMenuOpen] = useState(false);
   const [topMenuOpen, setTopMenuOpen] = useState(false);
   const [editMode, setEditMode] = useState(() => localStorage.getItem(EDIT_MODE_KEY) === "true");
+  const [editingEntry, setEditingEntry] = useState<number | null>(null);
+  const [editingValue, setEditingValue] = useState("");
 
   const toggleEditMode = useCallback(() => {
     setEditMode((prev) => {
@@ -132,6 +153,26 @@ export default function App() {
       return next;
     });
   }, []);
+
+  const startEditing = useCallback((entry: Entry) => {
+    setEditingEntry(entry.linea);
+    setEditingValue(entry.original);
+  }, []);
+
+  const saveEditing = useCallback(() => {
+    if (editingEntry === null || editingValue.trim() === "") {
+      setEditingEntry(null);
+      return;
+    }
+    setEntries((prev) => {
+      const next = prev.map((e) =>
+        e.linea === editingEntry ? { ...e, original: editingValue.trim() } : e
+      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+    setEditingEntry(null);
+  }, [editingEntry, editingValue]);
 
   const openCatPopover = useCallback((id: string, btn: HTMLButtonElement) => {
     const r = btn.getBoundingClientRect();
@@ -151,6 +192,7 @@ export default function App() {
   const [addModalCatPos, setAddModalCatPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [leftPct, setLeftPct] = useState(50);
   const panelsRef = useRef<HTMLDivElement>(null);
+  const dbListRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
   const onResizerMouseDown = useCallback((e: React.MouseEvent) => {
@@ -245,6 +287,10 @@ export default function App() {
   }, [shoppingList]);
 
   useEffect(() => {
+    dbListRef.current?.scrollTo({ top: 0 });
+  }, [search, categoryFilter]);
+
+  useEffect(() => {
     if (!catPopover) return;
     const close = (e: MouseEvent) => {
       if ((e.target as Element).closest('.cat-popover, .cat-badge')) return;
@@ -296,26 +342,21 @@ export default function App() {
     return [...activeCategories].sort((a, b) => (counts.get(b) || 0) - (counts.get(a) || 0));
   }, [activeCategories, entries]);
 
-  const VISIBLE_CHIPS = 5;
-  const visibleCats = sortedCategories.slice(0, VISIBLE_CHIPS);
-  const overflowCats = sortedCategories.slice(VISIBLE_CHIPS);
-  const [catFilterMenuOpen, setCatFilterMenuOpen] = useState(false);
   const [unifyCatOpen, setUnifyCatOpen] = useState(false);
   const [addModalCatOpen, setAddModalCatOpen] = useState(false);
 
   useEffect(() => {
-    if (!shoppingMenuOpen && !topMenuOpen && !catFilterMenuOpen && !unifyCatOpen && !addModalCatOpen) return;
+    if (!shoppingMenuOpen && !topMenuOpen && !unifyCatOpen && !addModalCatOpen) return;
     const close = (e: MouseEvent) => {
-      if ((e.target as Element).closest('.dropdown')) return;
+      if ((e.target as Element).closest('.dropdown, .dropdown-menu')) return;
       setShoppingMenuOpen(false);
       setTopMenuOpen(false);
-      setCatFilterMenuOpen(false);
       setUnifyCatOpen(false);
       setAddModalCatOpen(false);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
-  }, [shoppingMenuOpen, topMenuOpen, catFilterMenuOpen, unifyCatOpen, addModalCatOpen]);
+  }, [shoppingMenuOpen, topMenuOpen, unifyCatOpen, addModalCatOpen]);
 
   const assignCategory = useCallback(
     (cat: string) => {
@@ -437,31 +478,26 @@ export default function App() {
 
   const removeShoppingItem = useCallback(
     (id: string) => {
-      setShoppingList((prev) => {
-        const item = prev.find((i) => i.id === id);
-        if (!item) return prev;
-        const next = prev.filter((i) => i.id !== id);
-        pushToast(
-          `"${item.original}" removed from list`,
-          () => setShoppingList((p) => [...p, item])
-        );
-        return next;
-      });
+      const item = shoppingList.find((i) => i.id === id);
+      if (!item) return;
+      setShoppingList((prev) => prev.filter((i) => i.id !== id));
+      pushToast(
+        `"${item.original}" removed from list`,
+        () => setShoppingList((p) => [...p, item])
+      );
     },
-    [pushToast]
+    [shoppingList, pushToast]
   );
 
   const clearCheckedItems = useCallback(() => {
-    setShoppingList((prev) => {
-      const removed = prev.filter((i) => i.checked);
-      if (!removed.length) return prev;
-      pushToast(
-        `${removed.length} checked item${removed.length > 1 ? "s" : ""} removed`,
-        () => setShoppingList((p) => [...p, ...removed])
-      );
-      return prev.filter((i) => !i.checked);
-    });
-  }, [pushToast]);
+    const removed = shoppingList.filter((i) => i.checked);
+    if (!removed.length) return;
+    setShoppingList((prev) => prev.filter((i) => !i.checked));
+    pushToast(
+      `${removed.length} checked item${removed.length > 1 ? "s" : ""} removed`,
+      () => setShoppingList((p) => [...p, ...removed])
+    );
+  }, [shoppingList, pushToast]);
 
   const clearAllItems = useCallback(() => {
     setClearAllConfirm(true);
@@ -641,7 +677,6 @@ export default function App() {
     setSelected(new Set());
     setCanonical(null);
     setCanonicalInput("");
-    setSaved(false);
   }, [canonical, selected, canonicalInput]);
 
   const keepSelected = useCallback(() => {
@@ -715,11 +750,9 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "productos.json";
+    a.download = `productos-${new Date().toISOString().slice(0, 16).replace("T", "_")}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
   }, [entries]);
 
   const pending = shoppingList.filter((item) => !item.checked).length;
@@ -775,7 +808,7 @@ export default function App() {
             disabled={undoStack.length === 0}
             title={undoStack.length > 0 ? `Undo: ${undoStack[undoStack.length - 1].description}` : "Nothing to undo"}
           >
-            ↩️
+            <Undo2 size={16} />
           </button>
           <div className="dropdown">
             <button
@@ -789,24 +822,26 @@ export default function App() {
                 setTopMenuOpen((p) => !p);
               }}
             >
-              ⋯
+              <Ellipsis size={16} />
             </button>
-            {topMenuOpen && (
+            {topMenuOpen && createPortal(
               <div className="dropdown-menu" style={{ position: "fixed", top: topMenuPos.top, left: topMenuPos.left }}>
                 <button
                   className="dropdown-item"
                   onClick={() => { downloadJSON(); setTopMenuOpen(false); }}
                 >
-                  💾 Export database
+                  <Download size={16} /> Export database
                 </button>
                 <div className="dropdown-sep" />
                 <button
-                  className={"dropdown-item" + (editMode ? " dropdown-item-active" : "")}
+                  className="dropdown-item"
                   onClick={() => { toggleEditMode(); setTopMenuOpen(false); }}
                 >
-                  {editMode ? "✏️ Edit mode ✓" : "👁 Read-only mode"}
+                  <Pencil size={16} /> Edit mode
+                  <span className={"toggle-switch" + (editMode ? " active" : "")} />
                 </button>
-              </div>
+              </div>,
+              document.body,
             )}
           </div>
         </div>
@@ -833,7 +868,7 @@ export default function App() {
               >
                 All
               </button>
-              {visibleCats.map((cat) => (
+              {sortedCategories.map((cat) => (
                 <button
                   key={cat}
                   className={"cat-chip" + (categoryFilter === cat ? " active" : "")}
@@ -843,34 +878,6 @@ export default function App() {
                   {cat}
                 </button>
               ))}
-              {overflowCats.length > 0 && (
-                <div className="dropdown" style={{ display: "inline-flex" }}>
-                  <button
-                    className={"cat-chip" + (overflowCats.some((c) => c === categoryFilter) ? " active" : "")}
-                    onClick={() => { setCatFilterMenuOpen((p) => !p); }}
-                  >
-                    ⋯
-                  </button>
-                  {catFilterMenuOpen && (
-                    <div className="dropdown-menu" style={{ position: "absolute", top: "100%", left: 0, marginTop: 4 }}>
-                      {overflowCats.map((cat) => (
-                        <button
-                          key={cat}
-                          className={"dropdown-item" + (categoryFilter === cat ? " dropdown-item-active" : "")}
-                          onClick={() => { setCategoryFilter(categoryFilter === cat ? "" : cat); setCatFilterMenuOpen(false); }}
-                        >
-                          {categoryFilter === cat && <span className="cat-pop-check">✓</span>}
-                          <span
-                            className="cat-pop-dot"
-                            style={CATEGORY_COLORS[cat] ? { background: CATEGORY_COLORS[cat].bg, color: CATEGORY_COLORS[cat].text } : undefined}
-                          />
-                          {cat}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
 
@@ -881,12 +888,12 @@ export default function App() {
                 disabled={filteredSelectedCount === 0}
                 onClick={addToShoppingList}
               >
-                ➕ Add {filteredSelectedCount > 0 ? `(${filteredSelectedCount})` : ""} to list
+                <Plus size={16} /> Add {filteredSelectedCount > 0 ? `(${filteredSelectedCount})` : ""} to list
               </button>
               {addMsg && <span className="add-msg">{addMsg}</span>}
               {editMode && canKeepSelected && (
                 <button className="btn-keep" onClick={keepSelected}>
-                  🔁 Keep {filteredSelectedCount} (remove {filtered.length - filteredSelectedCount})
+                  <Repeat size={16} /> Keep {filteredSelectedCount} (remove {filtered.length - filteredSelectedCount})
                 </button>
               )}
               {editMode && filteredSelectedCount > 0 && (
@@ -894,7 +901,7 @@ export default function App() {
                   className="btn-danger"
                   onClick={deleteSelected}
                 >
-                  🗑️ Delete ({filteredSelectedCount})
+                  <Trash2 size={16} /> Delete ({filteredSelectedCount})
                 </button>
               )}
               {filteredSelectedCount > 0 && (
@@ -902,12 +909,12 @@ export default function App() {
                   className="ghost"
                   onClick={() => { setSelected(new Set()); setCanonical(null); setCanonicalInput(""); }}
                 >
-                  ✕ Clear selection
+                  <X size={14} /> Clear selection
                 </button>
               )}
             </div>
 
-            {editMode && selectedCount >= 2 && (
+            {ENABLE_UNIFY && editMode && selectedCount >= 2 && (
               <div className="action-bar-unify">
                 <div className="canonical-field">
                   <input
@@ -932,7 +939,7 @@ export default function App() {
                   >
                     Category…
                   </button>
-                  {unifyCatOpen && (
+                  {unifyCatOpen && createPortal(
                     <div className="dropdown-menu" style={{ position: "fixed", top: unifyCatPos.top, left: unifyCatPos.left }}>
                       <button
                         className="dropdown-item"
@@ -953,22 +960,23 @@ export default function App() {
                           {cat}
                         </button>
                       ))}
-                    </div>
+                    </div>,
+                    document.body,
                   )}
                 </div>
                 {categoryMsg && <span className="cat-msg">{categoryMsg}</span>}
                 <button className="btn-unify" disabled={!canUnify} onClick={unify}>
-                  🗑️ Unify {canUnify ? `(${selectedCount})` : ""}
+                  <Trash2 size={16} /> Unify {canUnify ? `(${selectedCount})` : ""}
                 </button>
               </div>
             )}
           </div>
 
-          <div className="entry-list">
+          <div className="entry-list" ref={dbListRef}>
             {filtered.length === 0 ? (
               <div className="empty small">
                 <p>No entries found for <strong>"{search}"</strong></p>
-                <button onClick={() => openAddModal(search)}>➕ Add "{search}" as new product</button>
+                <button onClick={() => openAddModal(search)}><Plus size={16} /> Add "{search}" as new product</button>
               </div>
             ) : (
               filtered.map((e) => {
@@ -993,21 +1001,44 @@ export default function App() {
                         onClick={() => setAsCanonical(e.linea)}
                         title="Set as canonical"
                       >
-                        {isCanonical ? "★" : "☆"}
+                        <Star size={16} fill={isCanonical ? "currentColor" : "none"} />
                       </button>
                     )}
                     <span className="entry-line">{e.linea}</span>
-                    <span
-                      className="entry-text"
-                      onClick={() => toggleSelected(e.linea)}
-                    >
-                      {highlight(e.original, search)}
-                    </span>
+                    {editingEntry === e.linea ? (
+                      <input
+                        className="entry-text entry-edit-input"
+                        value={editingValue}
+                        onChange={(ev) => setEditingValue(ev.target.value)}
+                        onBlur={saveEditing}
+                        onKeyDown={(ev) => {
+                          if (ev.key === "Enter") saveEditing();
+                          if (ev.key === "Escape") setEditingEntry(null);
+                        }}
+                        autoFocus
+                        onClick={(ev) => ev.stopPropagation()}
+                      />
+                    ) : (
+                      <span
+                        className="entry-text"
+                        onDoubleClick={() => editMode && startEditing(e)}
+                        onClick={() => toggleSelected(e.linea)}
+                      >
+                        {highlight(e.original, search)}
+                      </span>
+                    )}
                     <button
                       className={"cat-badge" + (e.categoria ? "" : " cat-badge-empty")}
                       style={e.categoria && CATEGORY_COLORS[e.categoria] ? { background: CATEGORY_COLORS[e.categoria].bg, color: CATEGORY_COLORS[e.categoria].text } : undefined}
-                      onClick={(ev) => { ev.stopPropagation(); openCatPopover(`db-${e.linea}`, ev.currentTarget); }}
-                      title="Change category"
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        if (editMode) {
+                          openCatPopover(`db-${e.linea}`, ev.currentTarget);
+                        } else if (e.categoria) {
+                          setCategoryFilter((prev) => prev === e.categoria ? "" : e.categoria!);
+                        }
+                      }}
+                      title={editMode ? "Change category" : "Filter by category"}
                     >
                       {e.categoria || "None"}
                     </button>
@@ -1029,7 +1060,7 @@ export default function App() {
             </div>
             <div className="panel-header-actions">
               <button className="btn-primary" onClick={copyShoppingList} disabled={pending === 0}>
-                {copied ? "✅ Copied" : "📋 Copy list"}
+                {copied ? <><Check size={16} /> Copied</> : <><ClipboardCopy size={16} /> Copy list</>}
               </button>
               <div className="dropdown">
                 <button
@@ -1044,15 +1075,15 @@ export default function App() {
                   }}
                   disabled={shoppingList.length === 0}
                 >
-                  ⋯
+                  <Ellipsis size={16} />
                 </button>
-                {shoppingMenuOpen && (
+                {shoppingMenuOpen && createPortal(
                   <div className="dropdown-menu" style={{ position: "fixed", top: shoppingMenuPos.top, left: shoppingMenuPos.left }}>
                     <button
                       className="dropdown-item"
                       onClick={() => { setGroupByCategory(!groupByCategory); setShoppingMenuOpen(false); }}
                     >
-                      {groupByCategory ? "☰ Free list" : "▤ Group by category"}
+                      {groupByCategory ? <><List size={16} /> Free list</> : <><LayoutGrid size={16} /> Group by category</>}
                     </button>
                     <div className="dropdown-sep" />
                     <button
@@ -1060,14 +1091,14 @@ export default function App() {
                       onClick={() => { clearCheckedItems(); setShoppingMenuOpen(false); }}
                       disabled={shoppingList.filter((i) => i.checked).length === 0}
                     >
-                      🗑️ Remove checked
+                      <Trash2 size={16} /> Remove checked
                     </button>
                     <button
                       className="dropdown-item dropdown-item-danger"
                       onClick={() => { clearAllItems(); setShoppingMenuOpen(false); }}
                       disabled={shoppingList.length === 0}
                     >
-                      🧹 Clear all
+                      <Trash2 size={16} /> Clear all
                     </button>
                     <div className="dropdown-sep" />
                     <button
@@ -1075,15 +1106,16 @@ export default function App() {
                       onClick={() => { downloadList(); setShoppingMenuOpen(false); }}
                       disabled={shoppingList.length === 0}
                     >
-                      💾 Download list
+                      <Download size={16} /> Download list
                     </button>
                     <button
                       className="dropdown-item"
                       onClick={() => { loadListFromFile(); setShoppingMenuOpen(false); }}
                     >
-                      📂 Load list
+                      <FolderOpen size={16} /> Load list
                     </button>
-                  </div>
+                  </div>,
+                  document.body,
                 )}
               </div>
               <input
@@ -1099,7 +1131,7 @@ export default function App() {
           <div className="entry-list">
             {shoppingList.length === 0 ? (
               <div className="empty small">
-                <p>Search for products in the database and add them with ➕</p>
+                <p>Search for products in the database and add them with <Plus size={14} style={{ verticalAlign: "middle" }} /></p>
               </div>
             ) : shoppingGrouped ? (
               shoppingGrouped.map(([cat, items]) => (
@@ -1119,7 +1151,7 @@ export default function App() {
                         onClick={() => removeShoppingItem(item.id)}
                         title="Remove from list"
                       >
-                        ✕
+                        <X size={14} />
                       </button>
                     </article>
                   ))}
@@ -1141,7 +1173,7 @@ export default function App() {
                   onDrop={(e) => handleDrop(e, idx)}
                   onDragEnd={handleDragEnd}
                 >
-                  <span className="drag-handle">⠿</span>
+                  <span className="drag-handle"><GripVertical size={16} /></span>
                   <input
                     type="checkbox"
                     className="entry-check"
@@ -1162,7 +1194,7 @@ export default function App() {
                     onClick={() => removeShoppingItem(item.id)}
                     title="Remove from list"
                   >
-                    ✕
+                    <X size={14} />
                   </button>
                 </article>
               ))
@@ -1171,7 +1203,7 @@ export default function App() {
         </div>
       </div>
 
-      {unifyConfirm && (
+      {ENABLE_UNIFY && unifyConfirm && (
         <div className="modal-overlay" onClick={() => setUnifyConfirm(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <p className="modal-msg">
@@ -1223,7 +1255,7 @@ export default function App() {
                     className={"dropdown-item" + (!newProductCategory ? " dropdown-item-active" : "")}
                     onClick={() => { setNewProductCategory(""); setAddModalCatOpen(false); }}
                   >
-                    {!newProductCategory && <span className="cat-pop-check">✓</span>}
+                    {!newProductCategory && <span className="cat-pop-check"><Check size={14} /></span>}
                     No category
                   </button>
                   {CATEGORIES.map((cat) => (
@@ -1232,7 +1264,7 @@ export default function App() {
                       className={"dropdown-item" + (newProductCategory === cat ? " dropdown-item-active" : "")}
                       onClick={() => { setNewProductCategory(cat); setAddModalCatOpen(false); }}
                     >
-                      {newProductCategory === cat && <span className="cat-pop-check">✓</span>}
+                      {newProductCategory === cat && <span className="cat-pop-check"><Check size={14} /></span>}
                       <span
                         className="cat-pop-dot"
                         style={CATEGORY_COLORS[cat] ? { background: CATEGORY_COLORS[cat].bg, color: CATEGORY_COLORS[cat].text } : undefined}
@@ -1290,7 +1322,7 @@ export default function App() {
                 setCatPopover(null);
               }}
             >
-              {!currentCat && <span className="cat-pop-check">✓</span>}
+              {!currentCat && <span className="cat-pop-check"><Check size={14} /></span>}
               No category
             </button>
             {CATEGORIES.map((c) => (
@@ -1302,7 +1334,7 @@ export default function App() {
                   setCatPopover(null);
                 }}
               >
-                {currentCat === c && <span className="cat-pop-check">✓</span>}
+                {currentCat === c && <span className="cat-pop-check"><Check size={14} /></span>}
                 <span
                   className="cat-pop-dot"
                   style={CATEGORY_COLORS[c] ? { background: CATEGORY_COLORS[c].bg, color: CATEGORY_COLORS[c].text } : undefined}
@@ -1328,7 +1360,7 @@ export default function App() {
               Undo
             </button>
             <button className="toast-close" onClick={() => dismissToast(t.id)}>
-              ✕
+              <X size={14} />
             </button>
           </div>
         ))}
