@@ -16,12 +16,15 @@ import {
   Ellipsis,
   GripVertical,
   Star,
+  Moon,
+  Sun,
 } from "lucide-react";
 import type { Entry, ShoppingItem, Summary } from "./types";
 
 const STORAGE_KEY = "shopier-productos";
 const SHOPPING_KEY = "shopier-lista";
 const EDIT_MODE_KEY = "shopier-edit-mode";
+const THEME_KEY = "shopier-theme";
 
 type ToastAction = {
   id: string;
@@ -59,6 +62,25 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   "Panadería":  { bg: "#fef9c3", text: "#854d0e" },
   "Verdulería": { bg: "#dcfce7", text: "#166534" },
 };
+
+const CATEGORY_COLORS_DARK: Record<string, { bg: string; text: string }> = {
+  "Almacén":    { bg: "#78350f", text: "#fef3c7" },
+  "Bebidas":    { bg: "#1e3a8a", text: "#dbeafe" },
+  "Carnicería": { bg: "#7f1d1d", text: "#fee2e2" },
+  "Congelados": { bg: "#3730a3", text: "#e0e7ff" },
+  "Fiambrería": { bg: "#831843", text: "#fce7f3" },
+  "Higiene":    { bg: "#064e3b", text: "#d1fae5" },
+  "Lácteos":    { bg: "#4c1d95", text: "#ede9fe" },
+  "Limpieza":   { bg: "#134e4a", text: "#ccfbf1" },
+  "Mascotas":   { bg: "#7c2d12", text: "#fed7aa" },
+  "Otros":      { bg: "#374151", text: "#f3f4f6" },
+  "Panadería":  { bg: "#713f12", text: "#fef9c3" },
+  "Verdulería": { bg: "#14532d", text: "#dcfce7" },
+};
+
+function getCategoryColors(isDark: boolean) {
+  return isDark ? CATEGORY_COLORS_DARK : CATEGORY_COLORS;
+}
 
 function computeMenuPosition(
   trigger: DOMRect,
@@ -143,8 +165,24 @@ export default function App() {
   const [shoppingMenuOpen, setShoppingMenuOpen] = useState(false);
   const [topMenuOpen, setTopMenuOpen] = useState(false);
   const [editMode, setEditMode] = useState(() => localStorage.getItem(EDIT_MODE_KEY) === "true");
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved) return saved;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
   const [editingEntry, setEditingEntry] = useState<number | null>(null);
   const [editingValue, setEditingValue] = useState("");
+
+  const isDark = theme === "dark";
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  }, []);
 
   const toggleEditMode = useCallback(() => {
     setEditMode((prev) => {
@@ -817,7 +855,7 @@ export default function App() {
               onClick={() => {
                 if (topMenuRef.current) {
                   const r = topMenuRef.current.getBoundingClientRect();
-                  setTopMenuPos(computeMenuPosition(r, 200, 120));
+                  setTopMenuPos(computeMenuPosition(r, 200, 240));
                 }
                 setTopMenuOpen((p) => !p);
               }}
@@ -839,6 +877,14 @@ export default function App() {
                 >
                   <Pencil size={16} /> Edit mode
                   <span className={"toggle-switch" + (editMode ? " active" : "")} />
+                </button>
+                <div className="dropdown-sep" />
+                <button
+                  className="dropdown-item"
+                  onClick={() => { toggleTheme(); setTopMenuOpen(false); }}
+                >
+                  {isDark ? <Sun size={16} /> : <Moon size={16} />}
+                  {isDark ? " Light mode" : " Dark mode"}
                 </button>
               </div>,
               document.body,
@@ -872,7 +918,7 @@ export default function App() {
                 <button
                   key={cat}
                   className={"cat-chip" + (categoryFilter === cat ? " active" : "")}
-                  style={categoryFilter !== cat && CATEGORY_COLORS[cat] ? { background: CATEGORY_COLORS[cat].bg, color: CATEGORY_COLORS[cat].text } : undefined}
+                  style={categoryFilter !== cat && getCategoryColors(isDark)[cat] ? { background: getCategoryColors(isDark)[cat].bg, color: getCategoryColors(isDark)[cat].text } : undefined}
                   onClick={() => setCategoryFilter(categoryFilter === cat ? "" : cat)}
                 >
                   {cat}
@@ -955,7 +1001,7 @@ export default function App() {
                         >
                           <span
                             className="cat-pop-dot"
-                            style={CATEGORY_COLORS[cat] ? { background: CATEGORY_COLORS[cat].bg, color: CATEGORY_COLORS[cat].text } : undefined}
+                            style={getCategoryColors(isDark)[cat] ? { background: getCategoryColors(isDark)[cat].bg, color: getCategoryColors(isDark)[cat].text } : undefined}
                           />
                           {cat}
                         </button>
@@ -1029,7 +1075,7 @@ export default function App() {
                     )}
                     <button
                       className={"cat-badge" + (e.categoria ? "" : " cat-badge-empty")}
-                      style={e.categoria && CATEGORY_COLORS[e.categoria] ? { background: CATEGORY_COLORS[e.categoria].bg, color: CATEGORY_COLORS[e.categoria].text } : undefined}
+                      style={e.categoria && getCategoryColors(isDark)[e.categoria] ? { background: getCategoryColors(isDark)[e.categoria].bg, color: getCategoryColors(isDark)[e.categoria].text } : undefined}
                       onClick={(ev) => {
                         ev.stopPropagation();
                         if (editMode) {
@@ -1184,7 +1230,7 @@ export default function App() {
                   {item.categoria && (
                     <span
                       className="cat-tag"
-                      style={CATEGORY_COLORS[item.categoria] ? { background: CATEGORY_COLORS[item.categoria].bg, color: CATEGORY_COLORS[item.categoria].text } : undefined}
+                      style={getCategoryColors(isDark)[item.categoria] ? { background: getCategoryColors(isDark)[item.categoria].bg, color: getCategoryColors(isDark)[item.categoria].text } : undefined}
                     >
                       {item.categoria}
                     </span>
@@ -1267,7 +1313,7 @@ export default function App() {
                       {newProductCategory === cat && <span className="cat-pop-check"><Check size={14} /></span>}
                       <span
                         className="cat-pop-dot"
-                        style={CATEGORY_COLORS[cat] ? { background: CATEGORY_COLORS[cat].bg, color: CATEGORY_COLORS[cat].text } : undefined}
+                        style={getCategoryColors(isDark)[cat] ? { background: getCategoryColors(isDark)[cat].bg, color: getCategoryColors(isDark)[cat].text } : undefined}
                       />
                       {cat}
                     </button>
@@ -1337,7 +1383,7 @@ export default function App() {
                 {currentCat === c && <span className="cat-pop-check"><Check size={14} /></span>}
                 <span
                   className="cat-pop-dot"
-                  style={CATEGORY_COLORS[c] ? { background: CATEGORY_COLORS[c].bg, color: CATEGORY_COLORS[c].text } : undefined}
+                  style={getCategoryColors(isDark)[c] ? { background: getCategoryColors(isDark)[c].bg, color: getCategoryColors(isDark)[c].text } : undefined}
                 />
                 {c}
               </button>
