@@ -135,7 +135,7 @@ export default function App() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [categoryMsg, setCategoryMsg] = useState("");
   const [catPopover, setCatPopover] = useState<string | null>(null);
-  const [catPopoverPos, setCatPopoverPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+  const [catPopoverPos, setCatPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [showAddModal, setShowAddModal] = useState(false);
   const [newProductName, setNewProductName] = useState("");
   const [newProductCategory, setNewProductCategory] = useState("");
@@ -176,8 +176,8 @@ export default function App() {
 
   const openCatPopover = useCallback((id: string, btn: HTMLButtonElement) => {
     const r = btn.getBoundingClientRect();
-    const pos = computeMenuPosition(r, 260, 350);
-    setCatPopoverPos({ top: pos.top, right: window.innerWidth - pos.left - 260 });
+    const pos = computeMenuPosition(r, 200, 420);
+    setCatPopoverPos({ top: pos.top, left: pos.left });
     setCatPopover((prev) => (prev === id ? null : id));
   }, []);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1305,14 +1305,14 @@ export default function App() {
         </div>
       )}
 
-      {catPopover && (() => {
+      {catPopover && createPortal((() => {
         const linea = parseInt(catPopover.replace(/^(db|sl)-/, ""));
         const currentEntry = entries.find((e) => e.linea === linea);
         const currentCat = currentEntry?.categoria ?? "";
         return (
           <div
             className="cat-popover"
-            style={{ position: "fixed", top: catPopoverPos.top, right: catPopoverPos.right, left: "auto" }}
+            style={{ position: "fixed", top: catPopoverPos.top, left: catPopoverPos.left }}
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -1344,7 +1344,7 @@ export default function App() {
             ))}
           </div>
         );
-      })()}
+      })(), document.body)}
 
       <div className="toast-stack">
         {toasts.map((t) => (
