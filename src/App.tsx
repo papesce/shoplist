@@ -26,6 +26,8 @@ import { useResizer } from "./hooks/useResizer";
 import { useEntries } from "./hooks/useEntries";
 import { useShoppingList } from "./hooks/useShoppingList";
 import { useHistory } from "./hooks/useHistory";
+import { useSelection } from "./hooks/useSelection";
+import { useInlineEdit } from "./hooks/useInlineEdit";
 import { Topbar } from "./components/layout/Topbar";
 import { Resizer } from "./components/layout/Resizer";
 import { CategoryChips } from "./components/catalog/CategoryChips";
@@ -105,13 +107,8 @@ export default function App() {
     downloadHistoryEntry,
   } = useHistory(shoppingList, setShoppingList, pushToast);
 
-  const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [canonical, setCanonical] = useState<number | null>(null);
-  const [canonicalInput, setCanonicalInput] = useState("");
   const [addMsg, setAddMsg] = useState("");
   const [unifyConfirm, setUnifyConfirm] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState("");
   const [categoryMsg, setCategoryMsg] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newProductName, setNewProductName] = useState("");
@@ -119,14 +116,35 @@ export default function App() {
   const [clearAllConfirm, setClearAllConfirm] = useState(false);
   const [shoppingMenuOpen, setShoppingMenuOpen] = useState(false);
   const [topMenuOpen, setTopMenuOpen] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<number | null>(null);
-  const [editingValue, setEditingValue] = useState("");
 
-  const startEditing = useCallback((entry: Entry) => {
-    setEditingEntry(entry.linea);
-    setEditingValue(entry.original);
-  }, []);
-  const cancelEditing = useCallback(() => setEditingEntry(null), []);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const filtered = useMemo(() => {
+    let result = entries;
+    const q = search.toLowerCase();
+    if (q) result = result.filter((e) => e.original.toLowerCase().includes(q));
+    if (categoryFilter) result = result.filter((e) => e.categoria === categoryFilter);
+    return result;
+  }, [search, categoryFilter, entries]);
+
+  const {
+    selected,
+    setSelected,
+    canonical,
+    setCanonical,
+    canonicalInput,
+    setCanonicalInput,
+    filteredSelected,
+    selectedCount,
+    filteredSelectedCount,
+    canUnify,
+    canKeepSelected,
+    toggleSelected,
+    setAsCanonical,
+  } = useSelection(entries, filtered, search);
+
+  const { editingEntry, editingValue, setEditingValue, startEditing, cancelEditing, saveEditing } =
+    useInlineEdit(entries, setEntries, setShoppingList, pushToast);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -141,52 +159,9 @@ export default function App() {
   const [addModalCatPos, setAddModalCatPos] = useState({ top: 0, left: 0 });
   const dbListRef = useRef<HTMLDivElement>(null);
 
-  const saveEditing = useCallback(() => {
-    if (editingEntry === null) return;
-    const trimmed = editingValue.trim();
-    if (trimmed === "") {
-      setEditingEntry(null);
-      return;
-    }
-    const linea = editingEntry;
-    const prevEntry = entries.find((e) => e.linea === linea);
-    if (!prevEntry || prevEntry.original === trimmed) {
-      setEditingEntry(null);
-      return;
-    }
-    const oldName = prevEntry.original;
-    setEntries((prev) => {
-      const next = prev.map((e) => (e.linea === linea ? { ...e, original: trimmed } : e));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
-    setShoppingList((prev) =>
-      prev.map((item) => (item.linea === linea ? { ...item, original: trimmed } : item)),
-    );
-    pushToast(`Renamed "${oldName}" → "${trimmed}"`, () => {
-      setEntries((prev) => {
-        const next = prev.map((e) => (e.linea === linea ? { ...e, original: oldName } : e));
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        return next;
-      });
-      setShoppingList((prev) =>
-        prev.map((item) => (item.linea === linea ? { ...item, original: oldName } : item)),
-      );
-    });
-    setEditingEntry(null);
-  }, [editingEntry, editingValue, entries, pushToast, setEntries, setShoppingList]);
-
   useEffect(() => {
     dbListRef.current?.scrollTo({ top: 0 });
   }, [search, categoryFilter]);
-
-  const filtered = useMemo(() => {
-    let result = entries;
-    const q = search.toLowerCase();
-    if (q) result = result.filter((e) => e.original.toLowerCase().includes(q));
-    if (categoryFilter) result = result.filter((e) => e.categoria === categoryFilter);
-    return result;
-  }, [search, categoryFilter, entries]);
 
   const summary = useMemo(() => calcSummary(entries), [entries]);
   const activeCategories = useMemo(
@@ -285,34 +260,6 @@ export default function App() {
   const isEntryInList = useCallback(
     (e: Entry) => shoppingLineas.has(e.linea) || shoppingNames.has(e.original.trim().toLowerCase()),
     [shoppingLineas, shoppingNames],
-  );
-  const filteredSelected = useMemo(
-    () => new Set([...selected].filter((l) => filtered.some((e) => e.linea === l))),
-    [selected, filtered],
-  );
-  const selectedCount = selected.size;
-  const filteredSelectedCount = filteredSelected.size;
-  const hasCanonical = canonical !== null;
-  const canUnify = selectedCount >= 2 && hasCanonical && canonicalInput.trim().length > 0;
-  const canKeepSelected =
-    search !== "" && filteredSelectedCount > 0 && filteredSelectedCount < filtered.length;
-  const toggleSelected = useCallback((linea: number) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(linea)) next.delete(linea);
-      else next.add(linea);
-      return next;
-    });
-  }, []);
-  const setAsCanonical = useCallback(
-    (linea: number) => {
-      const entry = entries.find((e) => e.linea === linea);
-      if (!entry) return;
-      setCanonical(linea);
-      setCanonicalInput(entry.original);
-      setSelected((prev) => (prev.has(linea) ? prev : new Set(prev).add(linea)));
-    },
-    [entries],
   );
   const addToShoppingList = useCallback(() => {
     const items = entries.filter((e) => filteredSelected.has(e.linea));
