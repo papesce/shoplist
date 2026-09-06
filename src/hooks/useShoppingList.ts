@@ -1,36 +1,23 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { ShoppingItem } from "../types";
 import { api } from "../api";
-import { loadJSON } from "../utils/storage";
 import { uid } from "../utils/id";
 import { CATEGORIES } from "../constants/categories";
 import { parseShoppingListJson } from "../utils/dbImport";
-
-const SHOPPING_KEY = "shopier-lista";
 
 export function useShoppingList(
   pushToast: (msg: string, undo: () => void) => void,
   entriesCategoriaMap?: Map<number, string | undefined>,
 ) {
-  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(() =>
-    loadJSON<ShoppingItem[]>(SHOPPING_KEY, []),
-  );
+  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
   const apiReady = useRef(false);
 
-  // initial load
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const apiList = await api.getShoppingList();
       if (cancelled) return;
-      const lsList = loadJSON<ShoppingItem[]>(SHOPPING_KEY, []);
-      if (apiList !== null) {
-        if (apiList.length > 0) setShoppingList(apiList);
-        else if (lsList.length > 0) {
-          setShoppingList(lsList);
-          api.setShoppingList(lsList);
-        }
-      }
+      if (apiList !== null && apiList.length > 0) setShoppingList(apiList);
       apiReady.current = true;
     })();
     return () => {
@@ -39,7 +26,6 @@ export function useShoppingList(
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(SHOPPING_KEY, JSON.stringify(shoppingList));
     if (!apiReady.current) return;
     const t = setTimeout(() => api.setShoppingList(shoppingList), 400);
     return () => clearTimeout(t);

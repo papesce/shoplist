@@ -1,17 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import type { SavedList, ShoppingItem } from "../types";
 import { api } from "../api";
-import { loadJSON } from "../utils/storage";
 import { uid } from "../utils/id";
-
-const HISTORY_KEY = "shopier-historial";
 
 export function useHistory(
   shoppingList: ShoppingItem[],
   setShoppingList: React.Dispatch<React.SetStateAction<ShoppingItem[]>>,
   pushToast: (msg: string, undo: () => void) => void,
 ) {
-  const [history, setHistory] = useState<SavedList[]>(() => loadJSON<SavedList[]>(HISTORY_KEY, []));
+  const [history, setHistory] = useState<SavedList[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyQuery, setHistoryQuery] = useState("");
   const [historyNameDraft, setHistoryNameDraft] = useState("");
@@ -20,20 +17,12 @@ export function useHistory(
   const [renamingValue, setRenamingValue] = useState("");
   const [deleteHistoryConfirm, setDeleteHistoryConfirm] = useState<string | null>(null);
 
-  // initial load
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const apiHist = await api.getHistory();
       if (cancelled) return;
-      const lsHist = loadJSON<SavedList[]>(HISTORY_KEY, []);
-      if (apiHist !== null) {
-        if (apiHist.length > 0) setHistory(apiHist);
-        else if (lsHist.length > 0) {
-          setHistory(lsHist);
-          api.setHistory(lsHist);
-        }
-      }
+      if (apiHist !== null && apiHist.length > 0) setHistory(apiHist);
     })();
     return () => {
       cancelled = true;
@@ -41,15 +30,9 @@ export function useHistory(
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-    } catch {
-      pushToast("History storage full — delete old entries or export", () => {});
-    }
-    // debounced SQLite sync — assume apiReady handled by caller via history length check
     const t = setTimeout(() => api.setHistory(history), 400);
     return () => clearTimeout(t);
-  }, [history, pushToast]);
+  }, [history]);
 
   const openSaveModal = useCallback(() => {
     if (shoppingList.length === 0) return;

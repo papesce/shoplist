@@ -1,35 +1,25 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Entry } from "../types";
 import { api } from "../api";
-import { loadJSON } from "../utils/storage";
 import { parseEntriesJson, mergeEntries } from "../utils/dbImport";
-
-const STORAGE_KEY = "shopier-productos";
 
 export function useEntries(
   pushToast: (msg: string, undo: () => void) => void,
   onLoaded?: (entries: Entry[]) => void,
 ) {
-  const [entries, setEntries] = useState<Entry[]>(() => loadJSON<Entry[]>(STORAGE_KEY, []));
-  const [loading, setLoading] = useState(entries.length === 0);
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [loading, setLoading] = useState(true);
   const apiReady = useRef(false);
 
-  // initial load / migration (SQLite is truth) — caller can observe via onLoaded if needed
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const apiEntries = await api.getEntries();
       if (cancelled) return;
-      const lsEntries = loadJSON<Entry[]>(STORAGE_KEY, []);
       if (apiEntries !== null) {
         if (apiEntries.length > 0) {
           setEntries(apiEntries);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(apiEntries));
           onLoaded?.(apiEntries);
-        } else if (lsEntries.length > 0) {
-          setEntries(lsEntries);
-          api.setEntries(lsEntries);
-          onLoaded?.(lsEntries);
         } else {
           // try optional seed
           fetch("/base/productos.json")
@@ -38,7 +28,6 @@ export function useEntries(
               const list = Array.isArray(data) ? (data as Entry[]) : [];
               if (list.length) {
                 setEntries(list);
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
                 api.setEntries(list);
                 onLoaded?.(list);
               }
@@ -59,18 +48,16 @@ export function useEntries(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // persist to SQLite (debounced) + localStorage cache
+  // persist to SQLite (debounced)
   useEffect(() => {
-    if (!entries.length) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
     if (!apiReady.current) return;
+    if (!entries.length) return;
     const t = setTimeout(() => api.setEntries(entries), 400);
     return () => clearTimeout(t);
   }, [entries]);
 
   const downloadJSON = useCallback(() => {
     const data = JSON.stringify(entries, null, 2);
-    localStorage.setItem(STORAGE_KEY, data);
     const blob = new Blob([data], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

@@ -1,8 +1,6 @@
 import { useState, useCallback } from "react";
 import type { Entry, ShoppingItem } from "../types";
 
-const STORAGE_KEY = "shopier-productos";
-
 export function useInlineEdit(
   entries: Entry[],
   setEntries: React.Dispatch<React.SetStateAction<Entry[]>>,
@@ -32,20 +30,12 @@ export function useInlineEdit(
       return;
     }
     const oldName = prevEntry.original;
-    setEntries((prev) => {
-      const next = prev.map((e) => (e.linea === linea ? { ...e, original: trimmed } : e));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+    setEntries((prev) => prev.map((e) => (e.linea === linea ? { ...e, original: trimmed } : e)));
     setShoppingList((prev) =>
       prev.map((item) => (item.linea === linea ? { ...item, original: trimmed } : item)),
     );
     pushToast(`Renamed "${oldName}" → "${trimmed}"`, () => {
-      setEntries((prev) => {
-        const next = prev.map((e) => (e.linea === linea ? { ...e, original: oldName } : e));
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        return next;
-      });
+      setEntries((prev) => prev.map((e) => (e.linea === linea ? { ...e, original: oldName } : e)));
       setShoppingList((prev) =>
         prev.map((item) => (item.linea === linea ? { ...item, original: oldName } : item)),
       );

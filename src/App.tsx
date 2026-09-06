@@ -25,7 +25,6 @@ import { ToastStack } from "./components/ui/ToastStack";
 import { ConfirmModal } from "./components/ui/Modal";
 import { AddProductModal } from "./components/modals/AddProductModal";
 
-const STORAGE_KEY = "shopier-productos";
 const ENABLE_UNIFY = false;
 
 export default function App() {
@@ -43,6 +42,13 @@ export default function App() {
     handleDbFileLoadFromInput,
     loadDbFromFile: loadDbFromFileHook,
   } = useEntries(pushToast);
+
+  // one-time cleanup of legacy browser cache (now DB is source of truth)
+  useEffect(() => {
+    localStorage.removeItem("shopier-productos");
+    localStorage.removeItem("shopier-lista");
+    localStorage.removeItem("shopier-historial");
+  }, []);
   const entriesCategoriaMap = useMemo(
     () => new Map(entries.map((e) => [e.linea, e.categoria])),
     [entries],
@@ -182,7 +188,6 @@ export default function App() {
       if (selected.size === 0) return;
       setEntries((prev) => {
         const next = prev.map((e) => (selected.has(e.linea) ? { ...e, categoria: cat } : e));
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         return next;
       });
       setShoppingList((prev) =>
@@ -199,7 +204,6 @@ export default function App() {
     (linea: number, cat: string) => {
       setEntries((prev) => {
         const next = prev.map((e) => (e.linea === linea ? { ...e, categoria: cat } : e));
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         return next;
       });
       setShoppingList((prev) =>
@@ -224,7 +228,6 @@ export default function App() {
     };
     setEntries((prev) => {
       const next = [...prev, newEntry];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
     });
     setShowAddModal(false);
@@ -233,7 +236,6 @@ export default function App() {
     pushToast(`"${name}" added to database`, () => {
       setEntries((prev) => {
         const next = prev.filter((e) => e.linea !== newEntry.linea);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         return next;
       });
     });
@@ -340,7 +342,6 @@ export default function App() {
       const next = prev
         .map((e) => (e.linea === keepLinea ? { ...e, original: name } : e))
         .filter((e) => !selected.has(e.linea) || e.linea === keepLinea);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
     });
     setShoppingList((prev) =>
@@ -367,7 +368,6 @@ export default function App() {
     const removedShop = shoppingList.filter((i) => toRemove.has(i.linea));
     setEntries((prev) => {
       const next = prev.filter((e) => !toRemove.has(e.linea));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
     });
     setShoppingList((prev) => prev.filter((item) => !toRemove.has(item.linea)));
@@ -378,7 +378,6 @@ export default function App() {
     pushToast(`Removed ${n} entr${n !== 1 ? "ies" : "y"} outside selection`, () => {
       setEntries((prev) => {
         const next = [...prev, ...removedEntries];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         return next;
       });
       setShoppingList((prev) => [...prev, ...removedShop]);
@@ -391,7 +390,6 @@ export default function App() {
     const removedShop = shoppingList.filter((i) => selected.has(i.linea));
     setEntries((prev) => {
       const next = prev.filter((e) => !selected.has(e.linea));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
     });
     setShoppingList((prev) => prev.filter((item) => !selected.has(item.linea)));
@@ -399,7 +397,6 @@ export default function App() {
     pushToast(`${n} entr${n > 1 ? "ies" : "y"} deleted`, () => {
       setEntries((prev) => {
         const next = [...prev, ...removedEntries];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         return next;
       });
       setShoppingList((prev) => [...prev, ...removedShop]);
