@@ -20,6 +20,7 @@ import { loadJSON } from "./utils/storage";
 import { uid } from "./utils/id";
 import { computeMenuPosition } from "./utils/menuPosition";
 import { calcSummary } from "./utils/summary";
+import { parseEntriesJson, mergeEntries, parseShoppingListJson } from "./utils/dbImport";
 import { useTheme } from "./hooks/useTheme";
 import { useEditMode } from "./hooks/useEditMode";
 import { useToast } from "./hooks/useToast";
@@ -469,23 +470,14 @@ export default function App() {
   }, []);
   const handleFileLoad = useCallback(() => {
     const input = fileInputRef.current;
-    if (!input || !input.files || !input.files[0]) return;
+    if (!input?.files?.[0]) return;
     const file = input.files[0];
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const data = JSON.parse(reader.result as string);
-        const items = Array.isArray(data?.items) ? data.items : [];
-        const valid = items.filter(
-          (item: unknown): item is ShoppingItem =>
-            typeof item === "object" &&
-            item !== null &&
-            typeof (item as ShoppingItem).id === "string" &&
-            typeof (item as ShoppingItem).original === "string" &&
-            typeof (item as ShoppingItem).linea === "number" &&
-            typeof (item as ShoppingItem).checked === "boolean",
-        );
-        if (!valid.length) {
+        const valid = parseShoppingListJson(data);
+        if (!valid) {
           pushToast("No valid items found in file", () => {});
           return;
         }
@@ -766,6 +758,42 @@ export default function App() {
     a.click();
     URL.revokeObjectURL(url);
   }, [entries]);
+  const importEntries = useCallback(
+    (parsed: unknown) => {
+      const valid = parseEntriesJson(parsed);
+      if (!valid.length) {
+        pushToast("No valid products found in file", () => {});
+        return;
+      }
+      const prev = entries;
+      const result = mergeEntries(prev, valid);
+      if (result.type === "invalid") {
+        pushToast("No valid products found in file", () => {});
+        return;
+      }
+      if (result.type === "noop") {
+        pushToast(
+          result.skipped
+            ? `All ${result.skipped} products already exist — nothing imported`
+            : "Nothing to import",
+          () => {},
+        );
+        return;
+      }
+      if (result.type === "fresh") {
+        setEntries(result.entries);
+        pushToast(`Imported ${result.entries.length} products`, () => setEntries(prev));
+      } else {
+        setEntries(result.entries);
+        pushToast(
+          `Imported ${result.added} products${result.skipped ? ` (${result.skipped} duplicates skipped)` : ""}`,
+          () => setEntries(prev),
+        );
+      }
+    },
+    [entries, pushToast],
+  );
+
   const loadDbFromFile = useCallback(() => {
     const trigger = (input: HTMLInputElement) => {
       input.value = "";
@@ -787,76 +815,7 @@ export default function App() {
       reader.onload = () => {
         try {
           const parsed = JSON.parse(reader.result as string);
-          const raw: unknown[] = Array.isArray(parsed)
-            ? parsed
-            : Array.isArray(parsed?.entries)
-              ? parsed.entries
-              : Array.isArray(parsed?.productos)
-                ? parsed.productos
-                : [];
-          const valid = raw.filter(
-            (item: unknown): item is Entry =>
-              typeof item === "object" &&
-              item !== null &&
-              typeof (item as Entry).original === "string" &&
-              (item as Entry).original.trim().length > 0 &&
-              typeof (item as Entry).linea === "number",
-          );
-          if (!valid.length) {
-            pushToast("No valid products found in file", () => {});
-            return;
-          }
-          const prev = entries;
-          if (prev.length === 0) {
-            const reindexed = valid.map((e, i) => ({
-              ...e,
-              linea: i + 1,
-              original: e.original.trim(),
-              ...(e.categoria ? { categoria: e.categoria } : {}),
-            }));
-            setEntries(reindexed);
-            pushToast(
-              `Imported ${reindexed.length} product${reindexed.length !== 1 ? "s" : ""}`,
-              () => setEntries(prev),
-            );
-          } else {
-            const existingNames = new Set(prev.map((e) => e.original.trim().toLowerCase()));
-            const existingLineas = new Set(prev.map((e) => e.linea));
-            let maxLinea = prev.reduce((m, e) => Math.max(m, e.linea), 0);
-            const toAdd: Entry[] = [];
-            let skipped = 0;
-            for (const e of valid) {
-              const key = e.original.trim().toLowerCase();
-              if (existingNames.has(key)) {
-                skipped++;
-                continue;
-              }
-              while (existingLineas.has(maxLinea + 1)) maxLinea++;
-              maxLinea++;
-              toAdd.push({
-                original: e.original.trim(),
-                linea: maxLinea,
-                ...(e.categoria ? { categoria: e.categoria } : {}),
-              });
-              existingNames.add(key);
-              existingLineas.add(maxLinea);
-            }
-            if (!toAdd.length) {
-              pushToast(
-                skipped
-                  ? `All ${skipped} products already exist — nothing imported`
-                  : "Nothing to import",
-                () => {},
-              );
-              return;
-            }
-            const merged = [...prev, ...toAdd];
-            setEntries(merged);
-            pushToast(
-              `Imported ${toAdd.length} product${toAdd.length !== 1 ? "s" : ""}${skipped ? ` (${skipped} duplicates skipped)` : ""}`,
-              () => setEntries(prev),
-            );
-          }
+          importEntries(parsed);
         } catch {
           pushToast("Invalid JSON file", () => {});
         }
@@ -866,87 +825,23 @@ export default function App() {
     };
     document.body.appendChild(tmp);
     trigger(tmp);
-  }, [entries, pushToast]);
+  }, [importEntries, pushToast]);
+
   const handleDbFileLoad = useCallback(() => {
     const input = dbFileInputRef.current;
-    if (!input || !input.files || !input.files[0]) return;
+    if (!input?.files?.[0]) return;
     const file = input.files[0];
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const parsed = JSON.parse(reader.result as string);
-        const raw: unknown[] = Array.isArray(parsed)
-          ? parsed
-          : Array.isArray(parsed?.entries)
-            ? parsed.entries
-            : Array.isArray(parsed?.productos)
-              ? parsed.productos
-              : [];
-        const valid = raw.filter(
-          (item: unknown): item is Entry =>
-            typeof item === "object" &&
-            item !== null &&
-            typeof (item as Entry).original === "string" &&
-            (item as Entry).original.trim().length > 0 &&
-            typeof (item as Entry).linea === "number",
-        );
-        if (!valid.length) {
-          pushToast("No valid products found in file", () => {});
-          return;
-        }
-        const normalized: Entry[] = valid.map((e) => ({
-          original: e.original.trim(),
-          linea: e.linea,
-          ...(e.categoria ? { categoria: e.categoria } : {}),
-        }));
-        const prev = entries;
-        if (prev.length === 0) {
-          const reindexed = normalized.map((e, i) => ({ ...e, linea: i + 1 }));
-          setEntries(reindexed);
-          pushToast(
-            `Imported ${reindexed.length} product${reindexed.length !== 1 ? "s" : ""}`,
-            () => setEntries(prev),
-          );
-        } else {
-          const existingNames = new Set(prev.map((e) => e.original.trim().toLowerCase()));
-          const existingLineas = new Set(prev.map((e) => e.linea));
-          let maxLinea = prev.reduce((m, e) => Math.max(m, e.linea), 0);
-          const toAdd: Entry[] = [];
-          let skipped = 0;
-          for (const e of normalized) {
-            const key = e.original.trim().toLowerCase();
-            if (existingNames.has(key)) {
-              skipped++;
-              continue;
-            }
-            while (existingLineas.has(maxLinea + 1)) maxLinea++;
-            maxLinea++;
-            toAdd.push({ ...e, linea: maxLinea });
-            existingNames.add(key);
-            existingLineas.add(maxLinea);
-          }
-          if (!toAdd.length) {
-            pushToast(
-              skipped
-                ? `All ${skipped} products already exist — nothing imported`
-                : "Nothing to import",
-              () => {},
-            );
-            return;
-          }
-          const merged = [...prev, ...toAdd];
-          setEntries(merged);
-          pushToast(
-            `Imported ${toAdd.length} product${toAdd.length !== 1 ? "s" : ""}${skipped ? ` (${skipped} duplicates skipped)` : ""}`,
-            () => setEntries(prev),
-          );
-        }
+        importEntries(parsed);
       } catch {
         pushToast("Invalid JSON file", () => {});
       }
     };
     reader.readAsText(file);
-  }, [entries, pushToast]);
+  }, [importEntries, pushToast]);
   const pending = shoppingList.filter((item) => !item.checked).length;
 
   if (loading) {
