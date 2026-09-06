@@ -10,6 +10,35 @@ PORT=4173
 
 # Ensure PATH includes Homebrew/node for GUI launch (do shell script has minimal PATH)
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+# fnm/nvm/volta/asdf use ephemeral PATH not inherited by GUI (Finder/Launchpad)
+if ! command -v node >/dev/null 2>&1; then
+  # fnm: try persisted installs first
+  if [ -d "$HOME/.local/share/fnm/node-versions" ]; then
+    for d in "$HOME/.local/share/fnm/node-versions"/*/installation/bin; do
+      [ -x "$d/node" ] && PATH="$d:$PATH" && break
+    done
+  fi
+  # try fnm env
+  if ! command -v node >/dev/null 2>&1 && command -v fnm >/dev/null 2>&1; then
+    eval "$(fnm env --shell bash 2>/dev/null)" || true
+  fi
+  # nvm
+  if ! command -v node >/dev/null 2>&1 && [ -s "$HOME/.nvm/nvm.sh" ]; then
+    # shellcheck disable=SC1090
+    . "$HOME/.nvm/nvm.sh" 2>/dev/null || true
+  fi
+  # volta / asdf / bun / local bin
+  for p in "$HOME/.volta/bin" "$HOME/.asdf/shims" "$HOME/.local/bin" "$HOME/.bun/bin"; do
+    [ -x "$p/node" ] && PATH="$p:$PATH" && break
+  done
+  # fallback: ask login shell (loads .zshrc/.bashrc with fnm/nvm)
+  if ! command -v node >/dev/null 2>&1; then
+    LOGIN_NODE=$(bash -l -c 'which node' 2>/dev/null || zsh -l -c 'which node' 2>/dev/null || true)
+    if [ -n "$LOGIN_NODE" ] && [ -x "$LOGIN_NODE" ]; then
+      PATH="$(dirname "$LOGIN_NODE"):$PATH"
+    fi
+  fi
+fi
 
 exec >>"$LOG" 2>&1
 echo "=== Shoplist launch $(date) ==="
