@@ -5,6 +5,8 @@ import {
   Download,
   Pencil,
   Plus,
+  ChevronRight,
+  ChevronLeft,
   Repeat,
   Trash2,
   X,
@@ -18,11 +20,16 @@ import {
   Star,
   Moon,
   Sun,
+  Save,
+  History,
+  ArchiveRestore,
+  Search,
 } from "lucide-react";
-import type { Entry, ShoppingItem, Summary } from "./types";
+import type { Entry, ShoppingItem, Summary, SavedList } from "./types";
 
 const STORAGE_KEY = "shopier-productos";
 const SHOPPING_KEY = "shopier-lista";
+const HISTORY_KEY = "shopier-historial";
 const EDIT_MODE_KEY = "shopier-edit-mode";
 const THEME_KEY = "shopier-theme";
 
@@ -45,6 +52,7 @@ const CATEGORIES = [
   "Mascotas",
   "Otros",
   "Panadería",
+  "Snacks",
   "Verdulería",
 ];
 
@@ -60,6 +68,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   "Mascotas":   { bg: "#fed7aa", text: "#9a3412" },
   "Otros":      { bg: "#f3f4f6", text: "#374151" },
   "Panadería":  { bg: "#fef9c3", text: "#854d0e" },
+  "Snacks":     { bg: "#f5d0fe", text: "#701a75" },
   "Verdulería": { bg: "#dcfce7", text: "#166534" },
 };
 
@@ -75,6 +84,7 @@ const CATEGORY_COLORS_DARK: Record<string, { bg: string; text: string }> = {
   "Mascotas":   { bg: "#7c2d12", text: "#fed7aa" },
   "Otros":      { bg: "#374151", text: "#f3f4f6" },
   "Panadería":  { bg: "#713f12", text: "#fef9c3" },
+  "Snacks":     { bg: "#701a75", text: "#f5d0fe" },
   "Verdulería": { bg: "#14532d", text: "#dcfce7" },
 };
 
@@ -164,6 +174,14 @@ export default function App() {
   const [clearAllConfirm, setClearAllConfirm] = useState(false);
   const [shoppingMenuOpen, setShoppingMenuOpen] = useState(false);
   const [topMenuOpen, setTopMenuOpen] = useState(false);
+  const [history, setHistory] = useState<SavedList[]>(() => loadJSON<SavedList[]>(HISTORY_KEY, []));
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [historyNameDraft, setHistoryNameDraft] = useState("");
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renamingValue, setRenamingValue] = useState("");
+  const [deleteHistoryConfirm, setDeleteHistoryConfirm] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(() => localStorage.getItem(EDIT_MODE_KEY) === "true");
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem(THEME_KEY);
@@ -197,20 +215,9 @@ export default function App() {
     setEditingValue(entry.original);
   }, []);
 
-  const saveEditing = useCallback(() => {
-    if (editingEntry === null || editingValue.trim() === "") {
-      setEditingEntry(null);
-      return;
-    }
-    setEntries((prev) => {
-      const next = prev.map((e) =>
-        e.linea === editingEntry ? { ...e, original: editingValue.trim() } : e
-      );
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
+  const cancelEditing = useCallback(() => {
     setEditingEntry(null);
-  }, [editingEntry, editingValue]);
+  }, []);
 
   const openCatPopover = useCallback((id: string, btn: HTMLButtonElement) => {
     const r = btn.getBoundingClientRect();
@@ -281,6 +288,51 @@ export default function App() {
     });
   }, []);
 
+  const saveEditing = useCallback(() => {
+    if (editingEntry === null) {
+      return;
+    }
+    const trimmed = editingValue.trim();
+    if (trimmed === "") {
+      setEditingEntry(null);
+      return;
+    }
+    const linea = editingEntry;
+    const prevEntry = entries.find((e) => e.linea === linea);
+    if (!prevEntry || prevEntry.original === trimmed) {
+      setEditingEntry(null);
+      return;
+    }
+    const oldName = prevEntry.original;
+    setEntries((prev) => {
+      const next = prev.map((e) =>
+        e.linea === linea ? { ...e, original: trimmed } : e
+      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+    setShoppingList((prev) =>
+      prev.map((item) =>
+        item.linea === linea ? { ...item, original: trimmed } : item
+      )
+    );
+    pushToast(`Renamed "${oldName}" → "${trimmed}"`, () => {
+      setEntries((prev) => {
+        const next = prev.map((e) =>
+          e.linea === linea ? { ...e, original: oldName } : e
+        );
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
+      setShoppingList((prev) =>
+        prev.map((item) =>
+          item.linea === linea ? { ...item, original: oldName } : item
+        )
+      );
+    });
+    setEditingEntry(null);
+  }, [editingEntry, editingValue, entries, pushToast]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
@@ -323,6 +375,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(SHOPPING_KEY, JSON.stringify(shoppingList));
   }, [shoppingList]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    } catch {
+      pushToast("History storage full — delete old entries or export", () => {});
+    }
+  }, [history]);
 
   useEffect(() => {
     dbListRef.current?.scrollTo({ top: 0 });
@@ -465,6 +525,10 @@ export default function App() {
     });
   }, [newProductName, newProductCategory, entries, pushToast]);
 
+  const shoppingLineas = useMemo(() => new Set(shoppingList.map((i) => i.linea)), [shoppingList]);
+  const shoppingNames = useMemo(() => new Set(shoppingList.map((i) => i.original.trim().toLowerCase())), [shoppingList]);
+  const isEntryInList = useCallback((e: Entry) => shoppingLineas.has(e.linea) || shoppingNames.has(e.original.trim().toLowerCase()), [shoppingLineas, shoppingNames]);
+
   const filteredSelected = useMemo(
     () => new Set([...selected].filter((l) => filtered.some((e) => e.linea === l))),
     [selected, filtered]
@@ -507,6 +571,26 @@ export default function App() {
     setAddMsg(`Added ${items.length} item${items.length > 1 ? "s" : ""}`);
     setTimeout(() => setAddMsg(""), 2000);
   }, [entries, filteredSelected]);
+
+  const addSingleToShoppingList = useCallback((entry: Entry) => {
+    if (isEntryInList(entry)) return;
+    const item: ShoppingItem = { id: uid(), original: entry.original, linea: entry.linea, checked: false, categoria: entry.categoria };
+    setShoppingList((prev) => [item, ...prev]);
+    pushToast(`"${entry.original}" added to list`, () => {
+      setShoppingList((prev) => prev.filter((i) => i.id !== item.id));
+    });
+  }, [isEntryInList, pushToast]);
+
+  const removeSingleFromShoppingList = useCallback((entry: Entry) => {
+    const key = entry.original.trim().toLowerCase();
+    const removed = shoppingList.filter((i) => i.linea === entry.linea || i.original.trim().toLowerCase() === key);
+    if (!removed.length) return;
+    const removedIds = new Set(removed.map((i) => i.id));
+    setShoppingList((prev) => prev.filter((i) => !removedIds.has(i.id)));
+    pushToast(`"${entry.original}" removed from list`, () => {
+      setShoppingList((prev) => [...removed, ...prev]);
+    });
+  }, [shoppingList, pushToast]);
 
   const toggleShoppingItem = useCallback((id: string) => {
     setShoppingList((prev) =>
@@ -606,6 +690,89 @@ export default function App() {
     a.click();
     URL.revokeObjectURL(url);
   }, [shoppingList]);
+
+  const openSaveModal = useCallback(() => {
+    if (shoppingList.length === 0) return;
+    const now = new Date();
+    const defaultName = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")} — ${shoppingList.length} items`;
+    setHistoryNameDraft(defaultName);
+    setShowSaveModal(true);
+  }, [shoppingList]);
+
+  const confirmSaveToHistory = useCallback(() => {
+    const name = historyNameDraft.trim() || new Date().toLocaleString();
+    const entry: SavedList = {
+      id: uid(),
+      name,
+      date: new Date().toISOString(),
+      items: shoppingList.map((i) => ({ ...i })),
+    };
+    if (history.length >= 50) {
+      pushToast("History limit (50) reached — oldest will be trimmed", () => {});
+    }
+    const next = [entry, ...history].slice(0, 50);
+    setHistory(next);
+    setShowSaveModal(false);
+    setHistoryOpen(true);
+    pushToast(`Saved "${name}" to history`, () => {
+      setHistory((prev) => prev.filter((h) => h.id !== entry.id));
+    });
+  }, [history, historyNameDraft, shoppingList, pushToast]);
+
+  const loadFromHistory = useCallback((id: string, mode: "replace" | "append" = "replace") => {
+    const entry = history.find((h) => h.id === id);
+    if (!entry) return;
+    const prev = shoppingList;
+    if (mode === "replace") {
+      const restored = entry.items.map((i) => ({ ...i, id: uid() }));
+      setShoppingList(restored);
+      pushToast(`Loaded "${entry.name}" (${restored.length} items)`, () => setShoppingList(prev));
+    } else {
+      const existingLineas = new Set(shoppingList.map((i) => i.linea));
+      const existingNames = new Set(shoppingList.map((i) => i.original.trim().toLowerCase()));
+      const toAdd = entry.items.filter((i) => !existingLineas.has(i.linea) && !existingNames.has(i.original.trim().toLowerCase()));
+      if (toAdd.length === 0) {
+        pushToast("All items already in list", () => {});
+        return;
+      }
+      const added = toAdd.map((i) => ({ ...i, id: uid() }));
+      setShoppingList((prev2) => [...prev2, ...added]);
+      pushToast(`Appended ${added.length} items from "${entry.name}"`, () => setShoppingList(prev));
+    }
+  }, [history, shoppingList, pushToast]);
+
+  const renameHistoryEntry = useCallback((id: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setHistory((prev) => prev.map((h) => h.id === id ? { ...h, name: trimmed } : h));
+    setRenamingId(null);
+  }, []);
+
+  const deleteHistoryEntry = useCallback((id: string) => {
+    const removed = history.find((h) => h.id === id);
+    if (!removed) return;
+    setHistory((prev) => prev.filter((h) => h.id !== id));
+    setDeleteHistoryConfirm(null);
+    pushToast(`Deleted "${removed.name}" from history`, () => setHistory((prev) => [removed, ...prev]));
+  }, [history, pushToast]);
+
+  const downloadHistoryEntry = useCallback((id: string) => {
+    const entry = history.find((h) => h.id === id);
+    if (!entry) return;
+    const blob = new Blob([JSON.stringify({ date: entry.date, name: entry.name, items: entry.items }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `shopping-list-${entry.date.slice(0, 16).replace("T", "_")}-${entry.name.replace(/[^a-z0-9]+/gi, "-").slice(0, 20)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [history]);
+
+  const filteredHistory = useMemo(() => {
+    const q = historyQuery.toLowerCase().trim();
+    if (!q) return history;
+    return history.filter((h) => h.name.toLowerCase().includes(q) || h.date.toLowerCase().includes(q) || h.items.some((i) => i.original.toLowerCase().includes(q)));
+  }, [history, historyQuery]);
 
   const handleDragStart = useCallback((e: React.DragEvent, idx: number) => {
     e.dataTransfer.effectAllowed = "move";
@@ -1028,10 +1195,12 @@ export default function App() {
               filtered.map((e) => {
                 const isSelected = filteredSelected.has(e.linea);
                 const isCanonical = canonical === e.linea;
+                const inList = isEntryInList(e);
                 const cls =
                   "entry" +
                   (isSelected ? " entry-selected" : "") +
-                  (isCanonical ? " entry-canonical" : "");
+                  (isCanonical ? " entry-canonical" : "") +
+                  (inList ? " entry-in-list-row" : "");
 
                 return (
                   <article key={e.linea} className={cls}>
@@ -1052,26 +1221,90 @@ export default function App() {
                     )}
                     <span className="entry-line">{e.linea}</span>
                     {editingEntry === e.linea ? (
-                      <input
-                        className="entry-text entry-edit-input"
-                        value={editingValue}
-                        onChange={(ev) => setEditingValue(ev.target.value)}
-                        onBlur={saveEditing}
-                        onKeyDown={(ev) => {
-                          if (ev.key === "Enter") saveEditing();
-                          if (ev.key === "Escape") setEditingEntry(null);
-                        }}
-                        autoFocus
-                        onClick={(ev) => ev.stopPropagation()}
-                      />
+                      <>
+                        <input
+                          className="entry-text entry-edit-input"
+                          value={editingValue}
+                          onChange={(ev) => setEditingValue(ev.target.value)}
+                          onBlur={saveEditing}
+                          onKeyDown={(ev) => {
+                            if (ev.key === "Enter") saveEditing();
+                            if (ev.key === "Escape") cancelEditing();
+                          }}
+                          autoFocus
+                          onClick={(ev) => ev.stopPropagation()}
+                        />
+                        <button
+                          className="entry-edit-action entry-edit-save"
+                          onMouseDown={(ev) => ev.preventDefault()}
+                          onClick={saveEditing}
+                          title="Save (Enter)"
+                          aria-label="Save"
+                        >
+                          <Check size={14} />
+                        </button>
+                        <button
+                          className="entry-edit-action entry-edit-cancel"
+                          onMouseDown={(ev) => ev.preventDefault()}
+                          onClick={cancelEditing}
+                          title="Cancel (Escape)"
+                          aria-label="Cancel"
+                        >
+                          <X size={14} />
+                        </button>
+                      </>
                     ) : (
-                      <span
-                        className="entry-text"
-                        onDoubleClick={() => editMode && startEditing(e)}
-                        onClick={() => toggleSelected(e.linea)}
-                      >
-                        {highlight(e.original, search)}
-                      </span>
+                      <>
+                        <span
+                          className="entry-text"
+                          onDoubleClick={() => editMode && startEditing(e)}
+                          onClick={() => toggleSelected(e.linea)}
+                          title={editMode ? "Double-click to edit" : undefined}
+                        >
+                          {highlight(e.original, search)}
+                        </span>
+                        {!inList ? (
+                          <button
+                            className="entry-add-btn"
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              addSingleToShoppingList(e);
+                            }}
+                            title="Add to list"
+                            aria-label={`Add ${e.original} to list`}
+                          >
+                            <ChevronRight size={14} />
+                          </button>
+                        ) : (
+                          <span className="entry-status">
+                            <span className="entry-in-mark" title="Already in list"><Check size={14} /></span>
+                            <button
+                              className="entry-remove-btn"
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                removeSingleFromShoppingList(e);
+                              }}
+                              title="Remove from list"
+                              aria-label={`Remove ${e.original} from list`}
+                            >
+                              <ChevronLeft size={14} />
+                            </button>
+                          </span>
+                        )}
+                        {editMode && (
+                          <button
+                            className="entry-edit-btn"
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              startEditing(e);
+                            }}
+                            title="Edit name"
+                            aria-label={`Edit ${e.original}`}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                      </>
                     )}
                     <button
                       className={"cat-badge" + (e.categoria ? "" : " cat-badge-empty")}
@@ -1105,6 +1338,12 @@ export default function App() {
               <h2>{pending} pending item{pending !== 1 ? "s" : ""}</h2>
             </div>
             <div className="panel-header-actions">
+              <button className="ghost" onClick={openSaveModal} disabled={shoppingList.length === 0} title="Save to history">
+                <Save size={16} /> Save
+              </button>
+              <button className="ghost" onClick={() => setHistoryOpen(true)} title={`History (${history.length})`}>
+                <History size={16} /> {history.length > 0 && <span className="history-badge">{history.length}</span>}
+              </button>
               <button className="btn-primary" onClick={copyShoppingList} disabled={pending === 0}>
                 {copied ? <><Check size={16} /> Copied</> : <><ClipboardCopy size={16} /> Copy list</>}
               </button>
@@ -1349,6 +1588,85 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {showSaveModal && (
+        <div className="modal-overlay" onClick={() => setShowSaveModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal-title">Save to history</h2>
+            <p className="modal-msg" style={{ fontSize: "0.82rem", color: "var(--muted)" }}>{shoppingList.length} items will be saved. Checked state is preserved.</p>
+            <input
+              type="text"
+              className="modal-input"
+              value={historyNameDraft}
+              onChange={(e) => setHistoryNameDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") confirmSaveToHistory(); if (e.key === "Escape") setShowSaveModal(false); }}
+              autoFocus
+            />
+            <div className="modal-actions">
+              <button className="ghost" onClick={() => setShowSaveModal(false)}>Cancel</button>
+              <button disabled={!historyNameDraft.trim()} onClick={confirmSaveToHistory}><Save size={16} /> Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteHistoryConfirm && (
+        <div className="modal-overlay" onClick={() => setDeleteHistoryConfirm(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <p className="modal-msg">Delete <strong>{history.find((h) => h.id === deleteHistoryConfirm)?.name}</strong> from history?</p>
+            <div className="modal-actions">
+              <button className="ghost" onClick={() => setDeleteHistoryConfirm(null)}>Cancel</button>
+              <button className="btn-unify" onClick={() => deleteHistoryEntry(deleteHistoryConfirm)}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {historyOpen && createPortal(
+        <div className="modal-overlay" onClick={() => setHistoryOpen(false)}>
+          <div className="history-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="history-header">
+              <div>
+                <h2 className="modal-title"><History size={16} style={{ verticalAlign: "middle" }} /> Purchase history</h2>
+                <p className="history-subtitle">{history.length} saved list{history.length !== 1 ? "s" : ""}</p>
+              </div>
+              <button className="ghost" onClick={() => setHistoryOpen(false)}><X size={16} /></button>
+            </div>
+            <div className="history-search">
+              <Search size={14} />
+              <input type="search" placeholder="Search history…" value={historyQuery} onChange={(e) => setHistoryQuery(e.target.value)} />
+            </div>
+            <div className="history-list">
+              {filteredHistory.length === 0 ? (
+                <div className="empty small">
+                  <p>{history.length === 0 ? "No saved purchases yet. Use Save to store your current list." : `No results for "${historyQuery}"`}</p>
+                </div>
+              ) : filteredHistory.map((h) => (
+                <div key={h.id} className="history-card">
+                  <div className="history-card-head">
+                    {renamingId === h.id ? (
+                      <input className="modal-input" value={renamingValue} onChange={(e) => setRenamingValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") renameHistoryEntry(h.id, renamingValue); if (e.key === "Escape") setRenamingId(null); }} onBlur={() => renameHistoryEntry(h.id, renamingValue)} autoFocus />
+                    ) : (
+                      <strong className="history-card-name" title={h.name}>{h.name}</strong>
+                    )}
+                    <span className="history-card-date">{new Date(h.date).toLocaleString()}</span>
+                  </div>
+                  <div className="history-card-meta">{h.items.length} items{ h.items.filter((i) => i.checked).length > 0 ? ` · ${h.items.filter((i) => i.checked).length} checked` : ""}</div>
+                  <div className="history-card-preview">{h.items.slice(0, 3).map((i) => i.original).join(" · ")}{h.items.length > 3 ? ` +${h.items.length - 3} more` : ""}</div>
+                  <div className="history-card-actions">
+                    <button onClick={() => loadFromHistory(h.id, "replace")}><ArchiveRestore size={14} /> Load</button>
+                    <button className="ghost" onClick={() => loadFromHistory(h.id, "append")}><Plus size={14} /> Append</button>
+                    <button className="ghost" onClick={() => downloadHistoryEntry(h.id)}><Download size={14} /></button>
+                    {renamingId !== h.id && <button className="ghost" onClick={() => { setRenamingId(h.id); setRenamingValue(h.name); }}><Pencil size={14} /></button>}
+                    <button className="ghost btn-danger" onClick={() => setDeleteHistoryConfirm(h.id)}><Trash2 size={14} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {catPopover && createPortal((() => {
