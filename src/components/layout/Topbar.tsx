@@ -1,4 +1,4 @@
-import { Undo2, Download, Pencil, FolderOpen, Ellipsis, Moon, Sun } from "lucide-react";
+import { Undo2, Download, Pencil, FolderOpen, Ellipsis, Moon, Sun, LogOut } from "lucide-react";
 import { createPortal } from "react-dom";
 import type { Summary } from "../../types";
 
@@ -21,6 +21,15 @@ type Props = {
 };
 
 import { computeMenuPosition } from "../../utils/menuPosition";
+
+async function quitApp() {
+  try {
+    await fetch("/api/quit", { method: "POST" });
+  } catch (_e) {
+    // ignore network error on quit
+  }
+  setTimeout(() => window.close(), 500);
+}
 
 export function Topbar({
   summary,
@@ -131,6 +140,16 @@ export function Topbar({
                 >
                   {isDark ? <Sun size={16} /> : <Moon size={16} />}
                   {isDark ? " Light mode" : " Dark mode"}
+                </button>
+                <div className="dropdown-sep" />
+                <button
+                  className="dropdown-item dropdown-item-danger"
+                  onClick={() => {
+                    setTopMenuOpen(false);
+                    quitApp();
+                  }}
+                >
+                  <LogOut size={16} /> Quit
                 </button>
               </div>,
               document.body,

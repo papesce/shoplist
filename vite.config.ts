@@ -47,6 +47,11 @@ function shoplistApiPlugin() {
         const d = await getDb();
 
         try {
+          if (pathname === "/api/quit" && method === "POST") {
+            json(res, { ok: true });
+            setTimeout(() => process.exit(0), 300);
+            return;
+          }
           if (pathname === "/api/health" && method === "GET") return json(res, { ok: true });
 
           if (pathname === "/api/entries" && method === "GET") return json(res, d.getEntries());

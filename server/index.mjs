@@ -52,6 +52,12 @@ app.put("/api/history", (req, res) => {
   res.json({ ok: true, count: list.length });
 });
 
+app.post("/api/quit", (_req, res) => {
+  res.json({ ok: true });
+  // give response time to flush, then exit (Shoplist.app / preview)
+  setTimeout(() => process.exit(0), 300);
+});
+
 app.post("/api/migrate", (req, res) => {
   const { entries, shoppingList, history } = req.body || {};
   const migrated = {};
