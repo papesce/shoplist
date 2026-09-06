@@ -1,20 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
-import { createPortal } from "react-dom";
-import {
-  Download,
-  Plus,
-  Repeat,
-  Trash2,
-  X,
-  ClipboardCopy,
-  Check,
-  List,
-  LayoutGrid,
-  FolderOpen,
-  Save,
-} from "lucide-react";
+import { Plus, FolderOpen, Save } from "lucide-react";
 import type { Entry } from "./types";
-import { CATEGORIES, getCategoryColors } from "./constants/categories";
+import { CATEGORIES } from "./constants/categories";
 import { uid } from "./utils/id";
 import { computeMenuPosition } from "./utils/menuPosition";
 import { calcSummary } from "./utils/summary";
@@ -30,13 +17,13 @@ import { useSelection } from "./hooks/useSelection";
 import { useInlineEdit } from "./hooks/useInlineEdit";
 import { Topbar } from "./components/layout/Topbar";
 import { Resizer } from "./components/layout/Resizer";
-import { CategoryChips } from "./components/catalog/CategoryChips";
-import { ProductRow } from "./components/catalog/ProductRow";
+import { CatalogPanel } from "./components/catalog/CatalogPanel";
+import { ShoppingPanel } from "./components/shopping/ShoppingPanel";
 import { CategoryPopover } from "./components/catalog/CategoryPopover";
-import { ShoppingList } from "./components/shopping/ShoppingList";
 import { HistoryDrawer } from "./components/history/HistoryDrawer";
 import { ToastStack } from "./components/ui/ToastStack";
 import { ConfirmModal } from "./components/ui/Modal";
+import { AddProductModal } from "./components/modals/AddProductModal";
 
 const STORAGE_KEY = "shopier-productos";
 const ENABLE_UNIFY = false;
@@ -607,318 +594,90 @@ export default function App() {
       />
       <div className="panels" ref={panelsRef}>
         <div className="panel panel-db" style={{ flex: `0 0 ${leftPct}%` }}>
-          <div className="search-bar">
-            <input
-              type="search"
-              placeholder="Search products…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              autoFocus
-            />
-            <span className="result-count">{filtered.length}</span>
-          </div>
-          <CategoryChips
+          <CatalogPanel
+            search={search}
+            setSearch={setSearch}
+            filtered={filtered}
             activeCategories={activeCategories}
             sortedCategories={sortedCategories}
             categoryFilter={categoryFilter}
             setCategoryFilter={setCategoryFilter}
             isDark={isDark}
+            filteredSelectedCount={filteredSelectedCount}
+            addToShoppingList={addToShoppingList}
+            addMsg={addMsg}
+            editMode={editMode}
+            canKeepSelected={canKeepSelected}
+            keepSelected={keepSelected}
+            deleteSelected={deleteSelected}
+            setSelected={setSelected}
+            canonical={canonical}
+            setCanonical={setCanonical}
+            setCanonicalInput={setCanonicalInput}
+            selectedCount={selectedCount}
+            canUnify={canUnify}
+            unify={unify}
+            categoryMsg={categoryMsg}
+            assignCategory={assignCategory}
+            unifyCatOpen={unifyCatOpen}
+            setUnifyCatOpen={setUnifyCatOpen}
+            unifyCatRef={unifyCatRef}
+            unifyCatPos={unifyCatPos}
+            setUnifyCatPos={setUnifyCatPos}
+            inputRef={inputRef}
+            canonicalInput={canonicalInput}
+            dbListRef={dbListRef}
+            openAddModal={openAddModal}
+            filteredSelected={filteredSelected}
+            isEntryInList={isEntryInList}
+            editingEntry={editingEntry}
+            editingValue={editingValue}
+            setEditingValue={setEditingValue}
+            saveEditing={saveEditing}
+            cancelEditing={cancelEditing}
+            toggleSelected={toggleSelected}
+            setAsCanonical={setAsCanonical}
+            startEditing={startEditing}
+            addSingle={addSingleToShoppingList}
+            removeSingle={removeSingleFromShoppingList}
+            openCatPopover={openCatPopover}
           />
-          <div className="action-bar">
-            <div className="action-bar-main">
-              <button
-                className="btn-primary"
-                disabled={filteredSelectedCount === 0}
-                onClick={addToShoppingList}
-              >
-                <Plus size={16} /> Add{" "}
-                {filteredSelectedCount > 0 ? `(${filteredSelectedCount})` : ""} to list
-              </button>
-              {addMsg && <span className="add-msg">{addMsg}</span>}
-              {editMode && canKeepSelected && (
-                <button className="btn-keep" onClick={keepSelected}>
-                  <Repeat size={16} /> Keep {filteredSelectedCount} (remove{" "}
-                  {filtered.length - filteredSelectedCount})
-                </button>
-              )}
-              {editMode && filteredSelectedCount > 0 && (
-                <button className="btn-danger" onClick={deleteSelected}>
-                  <Trash2 size={16} /> Delete ({filteredSelectedCount})
-                </button>
-              )}
-              {filteredSelectedCount > 0 && (
-                <button
-                  className="ghost"
-                  onClick={() => {
-                    setSelected(new Set());
-                    setCanonical(null);
-                    setCanonicalInput("");
-                  }}
-                >
-                  <X size={14} /> Clear selection
-                </button>
-              )}
-            </div>
-            {ENABLE_UNIFY && editMode && selectedCount >= 2 && (
-              <div className="action-bar-unify">
-                <div className="canonical-field">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    placeholder="Canonical name…"
-                    value={canonicalInput}
-                    onChange={(e) => setCanonicalInput(e.target.value)}
-                  />
-                </div>
-                <div className="dropdown" style={{ position: "relative" }}>
-                  <button
-                    ref={unifyCatRef}
-                    className="cat-select"
-                    onClick={() => {
-                      if (unifyCatRef.current) {
-                        const r = unifyCatRef.current.getBoundingClientRect();
-                        setUnifyCatPos(computeMenuPosition(r, 200, 400));
-                      }
-                      setUnifyCatOpen((p) => !p);
-                    }}
-                  >
-                    Category…
-                  </button>
-                  {unifyCatOpen &&
-                    createPortal(
-                      <div
-                        className="dropdown-menu"
-                        style={{ position: "fixed", top: unifyCatPos.top, left: unifyCatPos.left }}
-                      >
-                        <button
-                          className="dropdown-item"
-                          onClick={() => {
-                            assignCategory("");
-                            setUnifyCatOpen(false);
-                          }}
-                        >
-                          No category
-                        </button>
-                        {CATEGORIES.map((cat) => (
-                          <button
-                            key={cat}
-                            className="dropdown-item"
-                            onClick={() => {
-                              assignCategory(cat);
-                              setUnifyCatOpen(false);
-                            }}
-                          >
-                            <span
-                              className="cat-pop-dot"
-                              style={
-                                getCategoryColors(isDark)[cat]
-                                  ? {
-                                      background: getCategoryColors(isDark)[cat].bg,
-                                      color: getCategoryColors(isDark)[cat].text,
-                                    }
-                                  : undefined
-                              }
-                            />
-                            {cat}
-                          </button>
-                        ))}
-                      </div>,
-                      document.body,
-                    )}
-                </div>
-                {categoryMsg && <span className="cat-msg">{categoryMsg}</span>}
-                <button className="btn-unify" disabled={!canUnify} onClick={unify}>
-                  <Trash2 size={16} /> Unify {canUnify ? `(${selectedCount})` : ""}
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="entry-list" ref={dbListRef}>
-            {filtered.length === 0 ? (
-              <div className="empty small">
-                <p>
-                  No entries found for <strong>"{search}"</strong>
-                </p>
-                <button onClick={() => openAddModal(search)}>
-                  <Plus size={16} /> Add "{search}" as new product
-                </button>
-              </div>
-            ) : (
-              filtered.map((e) => (
-                <ProductRow
-                  key={e.linea}
-                  entry={e}
-                  isSelected={filteredSelected.has(e.linea)}
-                  isCanonical={canonical === e.linea}
-                  inList={isEntryInList(e)}
-                  selectedCount={selectedCount}
-                  search={search}
-                  isDark={isDark}
-                  editMode={editMode}
-                  editingEntry={editingEntry}
-                  editingValue={editingValue}
-                  setEditingValue={setEditingValue}
-                  saveEditing={saveEditing}
-                  cancelEditing={cancelEditing}
-                  toggleSelected={toggleSelected}
-                  setAsCanonical={setAsCanonical}
-                  startEditing={startEditing}
-                  addSingle={addSingleToShoppingList}
-                  removeSingle={removeSingleFromShoppingList}
-                  openCatPopover={openCatPopover}
-                  setCategoryFilter={setCategoryFilter}
-                  categoryFilter={categoryFilter}
-                />
-              ))
-            )}
-          </div>
         </div>
         <Resizer onMouseDown={onResizerMouseDown} />
         <div className="panel panel-list" style={{ flex: "1 1 0", minWidth: 0 }}>
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Shopping list</p>
-              <h2>{pending} pending items</h2>
-            </div>
-            <div className="panel-header-actions">
-              <button
-                className="ghost"
-                onClick={openSaveModal}
-                disabled={shoppingList.length === 0}
-                title="Save to history"
-              >
-                <Save size={16} /> Save
-              </button>
-              <button
-                className="ghost"
-                onClick={() => setHistoryOpen(true)}
-                title={`History (${history.length})`}
-              >
-                History{" "}
-                {history.length > 0 && <span className="history-badge">{history.length}</span>}
-              </button>
-              <button className="btn-primary" onClick={copyShoppingList} disabled={pending === 0}>
-                {copied ? (
-                  <>
-                    <Check size={16} /> Copied
-                  </>
-                ) : (
-                  <>
-                    <ClipboardCopy size={16} /> Copy list
-                  </>
-                )}
-              </button>
-              <div className="dropdown">
-                <button
-                  ref={shoppingMenuRef}
-                  className={"dropdown-btn" + (shoppingMenuOpen ? " active" : "")}
-                  onClick={() => {
-                    if (shoppingMenuRef.current) {
-                      const r = shoppingMenuRef.current.getBoundingClientRect();
-                      setShoppingMenuPos(computeMenuPosition(r, 220, 260));
-                    }
-                    setShoppingMenuOpen((p) => !p);
-                  }}
-                  disabled={shoppingList.length === 0}
-                >
-                  ⋯
-                </button>
-                {shoppingMenuOpen &&
-                  createPortal(
-                    <div
-                      className="dropdown-menu"
-                      style={{
-                        position: "fixed",
-                        top: shoppingMenuPos.top,
-                        left: shoppingMenuPos.left,
-                      }}
-                    >
-                      <button
-                        className="dropdown-item"
-                        onClick={() => {
-                          setGroupByCategory(!groupByCategory);
-                          setShoppingMenuOpen(false);
-                        }}
-                      >
-                        {groupByCategory ? (
-                          <>
-                            <List size={16} /> Free list
-                          </>
-                        ) : (
-                          <>
-                            <LayoutGrid size={16} /> Group by category
-                          </>
-                        )}
-                      </button>
-                      <div className="dropdown-sep" />
-                      <button
-                        className="dropdown-item"
-                        onClick={() => {
-                          clearCheckedItems();
-                          setShoppingMenuOpen(false);
-                        }}
-                        disabled={shoppingList.filter((i) => i.checked).length === 0}
-                      >
-                        <Trash2 size={16} /> Remove checked
-                      </button>
-                      <button
-                        className="dropdown-item dropdown-item-danger"
-                        onClick={() => {
-                          clearAllItems();
-                          setShoppingMenuOpen(false);
-                        }}
-                        disabled={shoppingList.length === 0}
-                      >
-                        <Trash2 size={16} /> Clear all
-                      </button>
-                      <div className="dropdown-sep" />
-                      <button
-                        className="dropdown-item"
-                        onClick={() => {
-                          downloadList();
-                          setShoppingMenuOpen(false);
-                        }}
-                        disabled={shoppingList.length === 0}
-                      >
-                        <Download size={16} /> Download list
-                      </button>
-                      <button
-                        className="dropdown-item"
-                        onClick={() => {
-                          loadListFromFile();
-                          setShoppingMenuOpen(false);
-                        }}
-                      >
-                        <FolderOpen size={16} /> Load list
-                      </button>
-                    </div>,
-                    document.body,
-                  )}
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".json"
-                style={{ display: "none" }}
-                onChange={handleFileLoad}
-              />
-            </div>
-          </div>
-          <div className="entry-list">
-            <ShoppingList
-              shoppingList={shoppingList}
-              shoppingGrouped={shoppingGrouped}
-              dragOverIndex={dragOverIndex}
-              isDark={isDark}
-              toggleShoppingItem={toggleShoppingItem}
-              removeShoppingItem={removeShoppingItem}
-              handleDragStart={handleDragStart}
-              handleDragOver={handleDragOver}
-              handleDragLeave={handleDragLeave}
-              handleDrop={handleDrop}
-              handleDragEnd={handleDragEnd}
-            />
-          </div>
+          <ShoppingPanel
+            pending={pending}
+            shoppingList={shoppingList}
+            shoppingGrouped={shoppingGrouped}
+            dragOverIndex={dragOverIndex}
+            isDark={isDark}
+            toggleShoppingItem={toggleShoppingItem}
+            removeShoppingItem={removeShoppingItem}
+            handleDragStart={handleDragStart}
+            handleDragOver={handleDragOver}
+            handleDragLeave={handleDragLeave}
+            handleDrop={handleDrop}
+            handleDragEnd={handleDragEnd}
+            openSaveModal={openSaveModal}
+            setHistoryOpen={setHistoryOpen}
+            historyLength={history.length}
+            copyShoppingList={copyShoppingList}
+            copied={copied}
+            groupByCategory={groupByCategory}
+            setGroupByCategory={setGroupByCategory}
+            shoppingMenuOpen={shoppingMenuOpen}
+            setShoppingMenuOpen={setShoppingMenuOpen}
+            shoppingMenuRef={shoppingMenuRef}
+            shoppingMenuPos={shoppingMenuPos}
+            setShoppingMenuPos={setShoppingMenuPos}
+            clearCheckedItems={clearCheckedItems}
+            clearAllItems={clearAllItems}
+            downloadList={downloadList}
+            loadListFromFile={loadListFromFile}
+            fileInputRef={fileInputRef}
+            handleFileLoad={handleFileLoad}
+            computeMenuPosition={computeMenuPosition}
+          />
         </div>
       </div>
       {ENABLE_UNIFY && unifyConfirm && (
@@ -934,85 +693,21 @@ export default function App() {
           onClose={() => setUnifyConfirm(false)}
         />
       )}
-      {showAddModal && (
-        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal-title">Add new product</h2>
-            <input
-              type="text"
-              className="modal-input"
-              placeholder="Product name…"
-              value={newProductName}
-              onChange={(e) => setNewProductName(e.target.value)}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addNewProduct();
-              }}
-            />
-            <div className="dropdown" style={{ position: "relative" }}>
-              <button
-                ref={addModalCatRef}
-                className="modal-select"
-                onClick={() => {
-                  if (addModalCatRef.current) {
-                    const r = addModalCatRef.current.getBoundingClientRect();
-                    setAddModalCatPos(computeMenuPosition(r, 200, 400));
-                  }
-                  setAddModalCatOpen((p) => !p);
-                }}
-              >
-                {newProductCategory || "No category"}
-              </button>
-              {addModalCatOpen && (
-                <div
-                  className="dropdown-menu"
-                  style={{
-                    position: "fixed",
-                    top: addModalCatPos.top,
-                    left: addModalCatPos.left,
-                    zIndex: 301,
-                  }}
-                >
-                  <button
-                    className={
-                      "dropdown-item" + (!newProductCategory ? " dropdown-item-active" : "")
-                    }
-                    onClick={() => {
-                      setNewProductCategory("");
-                      setAddModalCatOpen(false);
-                    }}
-                  >
-                    No category
-                  </button>
-                  {CATEGORIES.map((cat) => (
-                    <button
-                      key={cat}
-                      className={
-                        "dropdown-item" +
-                        (newProductCategory === cat ? " dropdown-item-active" : "")
-                      }
-                      onClick={() => {
-                        setNewProductCategory(cat);
-                        setAddModalCatOpen(false);
-                      }}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="modal-actions">
-              <button className="ghost" onClick={() => setShowAddModal(false)}>
-                Cancel
-              </button>
-              <button disabled={!newProductName.trim()} onClick={addNewProduct}>
-                Add
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AddProductModal
+        show={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        newProductName={newProductName}
+        setNewProductName={setNewProductName}
+        newProductCategory={newProductCategory}
+        setNewProductCategory={setNewProductCategory}
+        addNewProduct={addNewProduct}
+        addModalCatOpen={addModalCatOpen}
+        setAddModalCatOpen={setAddModalCatOpen}
+        addModalCatRef={addModalCatRef}
+        addModalCatPos={addModalCatPos}
+        setAddModalCatPos={setAddModalCatPos}
+        computeMenuPosition={computeMenuPosition}
+      />
       {clearAllConfirm && (
         <ConfirmModal
           message={
