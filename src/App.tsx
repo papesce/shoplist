@@ -13,19 +13,19 @@ import {
   FolderOpen,
   Save,
 } from "lucide-react";
-import type { Entry, ShoppingItem, SavedList } from "./types";
-import { api } from "./api";
+import type { Entry } from "./types";
 import { CATEGORIES, getCategoryColors } from "./constants/categories";
-import { loadJSON } from "./utils/storage";
 import { uid } from "./utils/id";
 import { computeMenuPosition } from "./utils/menuPosition";
 import { calcSummary } from "./utils/summary";
-import { parseEntriesJson, mergeEntries, parseShoppingListJson } from "./utils/dbImport";
 import { useTheme } from "./hooks/useTheme";
 import { useEditMode } from "./hooks/useEditMode";
 import { useToast } from "./hooks/useToast";
 import { useCatPopover } from "./hooks/usePopover";
 import { useResizer } from "./hooks/useResizer";
+import { useEntries } from "./hooks/useEntries";
+import { useShoppingList } from "./hooks/useShoppingList";
+import { useHistory } from "./hooks/useHistory";
 import { Topbar } from "./components/layout/Topbar";
 import { Resizer } from "./components/layout/Resizer";
 import { CategoryChips } from "./components/catalog/CategoryChips";
@@ -37,8 +37,6 @@ import { ToastStack } from "./components/ui/ToastStack";
 import { ConfirmModal } from "./components/ui/Modal";
 
 const STORAGE_KEY = "shopier-productos";
-const SHOPPING_KEY = "shopier-lista";
-const HISTORY_KEY = "shopier-historial";
 const ENABLE_UNIFY = false;
 
 export default function App() {
@@ -48,20 +46,71 @@ export default function App() {
   const { leftPct, panelsRef, onResizerMouseDown } = useResizer(50);
   const { catPopover, catPopoverPos, openCatPopover, setCatPopover } = useCatPopover();
 
+  const {
+    entries,
+    setEntries,
+    loading,
+    downloadJSON,
+    handleDbFileLoadFromInput,
+    loadDbFromFile: loadDbFromFileHook,
+  } = useEntries(pushToast);
+  const entriesCategoriaMap = useMemo(
+    () => new Map(entries.map((e) => [e.linea, e.categoria])),
+    [entries],
+  );
+  const {
+    shoppingList,
+    setShoppingList,
+    dragOverIndex,
+    groupByCategory,
+    setGroupByCategory,
+    copied,
+    pending,
+    shoppingGrouped,
+    toggleShoppingItem,
+    removeShoppingItem,
+    clearCheckedItems,
+    confirmClearAll: confirmClearAllHook,
+    copyShoppingList,
+    handleDragStart,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleDragEnd,
+    handleFileLoad: handleShoppingFileLoad,
+    downloadList,
+  } = useShoppingList(pushToast, entriesCategoriaMap);
+  const {
+    history,
+    historyOpen,
+    setHistoryOpen,
+    historyQuery,
+    setHistoryQuery,
+    historyNameDraft,
+    setHistoryNameDraft,
+    showSaveModal,
+    setShowSaveModal,
+    renamingId,
+    setRenamingId,
+    renamingValue,
+    setRenamingValue,
+    deleteHistoryConfirm,
+    setDeleteHistoryConfirm,
+    filteredHistory,
+    openSaveModal,
+    confirmSaveToHistory,
+    loadFromHistory,
+    renameHistoryEntry,
+    deleteHistoryEntry,
+    downloadHistoryEntry,
+  } = useHistory(shoppingList, setShoppingList, pushToast);
+
   const [search, setSearch] = useState("");
-  const [entries, setEntries] = useState<Entry[]>(() => loadJSON<Entry[]>(STORAGE_KEY, []));
-  const [loading, setLoading] = useState(entries.length === 0);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [canonical, setCanonical] = useState<number | null>(null);
   const [canonicalInput, setCanonicalInput] = useState("");
-  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(() =>
-    loadJSON<ShoppingItem[]>(SHOPPING_KEY, []),
-  );
   const [addMsg, setAddMsg] = useState("");
-  const [copied, setCopied] = useState(false);
   const [unifyConfirm, setUnifyConfirm] = useState(false);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [groupByCategory, setGroupByCategory] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [categoryMsg, setCategoryMsg] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -70,14 +119,6 @@ export default function App() {
   const [clearAllConfirm, setClearAllConfirm] = useState(false);
   const [shoppingMenuOpen, setShoppingMenuOpen] = useState(false);
   const [topMenuOpen, setTopMenuOpen] = useState(false);
-  const [history, setHistory] = useState<SavedList[]>(() => loadJSON<SavedList[]>(HISTORY_KEY, []));
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [historyQuery, setHistoryQuery] = useState("");
-  const [historyNameDraft, setHistoryNameDraft] = useState("");
-  const [showSaveModal, setShowSaveModal] = useState(false);
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renamingValue, setRenamingValue] = useState("");
-  const [deleteHistoryConfirm, setDeleteHistoryConfirm] = useState<string | null>(null);
   const [editingEntry, setEditingEntry] = useState<number | null>(null);
   const [editingValue, setEditingValue] = useState("");
 
@@ -133,120 +174,11 @@ export default function App() {
       );
     });
     setEditingEntry(null);
-  }, [editingEntry, editingValue, entries, pushToast]);
-
-  const apiReady = useRef(false);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const [apiEntries, apiList, apiHist] = await Promise.all([
-        api.getEntries(),
-        api.getShoppingList(),
-        api.getHistory(),
-      ]);
-      if (cancelled) return;
-      const lsEntries = loadJSON<Entry[]>(STORAGE_KEY, []);
-      const lsList = loadJSON<ShoppingItem[]>(SHOPPING_KEY, []);
-      const lsHist = loadJSON<SavedList[]>(HISTORY_KEY, []);
-      if (apiEntries !== null) {
-        if (apiEntries.length > 0) {
-          setEntries(apiEntries);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(apiEntries));
-        } else if (lsEntries.length > 0) {
-          setEntries(lsEntries);
-          api.setEntries(lsEntries);
-        } else {
-          fetch("/base/productos.json")
-            .then((r) => (r.ok ? r.json() : Promise.reject()))
-            .then((data) => {
-              const list = Array.isArray(data) ? (data as Entry[]) : [];
-              if (list.length) {
-                setEntries(list);
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-                api.setEntries(list);
-              }
-              setLoading(false);
-            })
-            .catch(() => setLoading(false));
-          if (lsList.length) api.setShoppingList(lsList);
-          if (lsHist.length) api.setHistory(lsHist);
-          apiReady.current = true;
-          if (apiEntries !== null) setLoading(false);
-          return;
-        }
-      }
-      if (apiList !== null) {
-        if (apiList.length > 0) setShoppingList(apiList);
-        else if (lsList.length > 0) {
-          setShoppingList(lsList);
-          api.setShoppingList(lsList);
-        }
-      }
-      if (apiHist !== null) {
-        if (apiHist.length > 0) setHistory(apiHist);
-        else if (lsHist.length > 0) {
-          setHistory(lsHist);
-          api.setHistory(lsHist);
-        }
-      }
-      if (
-        (lsEntries.length && apiEntries?.length === 0) ||
-        (lsList.length && apiList?.length === 0) ||
-        (lsHist.length && apiHist?.length === 0)
-      ) {
-        api.migrate({ entries: lsEntries, shoppingList: lsList, history: lsHist });
-      }
-      apiReady.current = true;
-      setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(SHOPPING_KEY, JSON.stringify(shoppingList));
-    if (!apiReady.current) return;
-    const t = setTimeout(() => api.setShoppingList(shoppingList), 400);
-    return () => clearTimeout(t);
-  }, [shoppingList]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-    } catch {
-      pushToast("History storage full — delete old entries or export", () => {});
-    }
-    if (!apiReady.current) return;
-    const t = setTimeout(() => api.setHistory(history), 400);
-    return () => clearTimeout(t);
-  }, [history, pushToast]);
-
-  useEffect(() => {
-    if (!entries.length) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-    if (!apiReady.current) return;
-    const t = setTimeout(() => api.setEntries(entries), 400);
-    return () => clearTimeout(t);
-  }, [entries]);
+  }, [editingEntry, editingValue, entries, pushToast, setEntries, setShoppingList]);
 
   useEffect(() => {
     dbListRef.current?.scrollTo({ top: 0 });
   }, [search, categoryFilter]);
-
-  useEffect(() => {
-    if (!entries.length) return;
-    const byLinea = new Map(entries.map((e) => [e.linea, e.categoria]));
-    setShoppingList((prev) => {
-      const needsFix = prev.some((item) => !item.categoria && byLinea.has(item.linea));
-      if (!needsFix) return prev;
-      return prev.map((item) =>
-        !item.categoria && byLinea.has(item.linea)
-          ? { ...item, categoria: byLinea.get(item.linea) }
-          : item,
-      );
-    });
-  }, [entries]);
 
   const filtered = useMemo(() => {
     let result = entries;
@@ -299,18 +231,21 @@ export default function App() {
       );
       setTimeout(() => setCategoryMsg(""), 2000);
     },
-    [selected],
+    [selected, setEntries, setShoppingList],
   );
-  const setCategoryItem = useCallback((linea: number, cat: string) => {
-    setEntries((prev) => {
-      const next = prev.map((e) => (e.linea === linea ? { ...e, categoria: cat } : e));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
-    setShoppingList((prev) =>
-      prev.map((item) => (item.linea === linea ? { ...item, categoria: cat } : item)),
-    );
-  }, []);
+  const setCategoryItem = useCallback(
+    (linea: number, cat: string) => {
+      setEntries((prev) => {
+        const next = prev.map((e) => (e.linea === linea ? { ...e, categoria: cat } : e));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
+      setShoppingList((prev) =>
+        prev.map((item) => (item.linea === linea ? { ...item, categoria: cat } : item)),
+      );
+    },
+    [setEntries, setShoppingList],
+  );
   const openAddModal = useCallback((prefillName?: string) => {
     setNewProductName(prefillName ?? "");
     setNewProductCategory("");
@@ -340,7 +275,7 @@ export default function App() {
         return next;
       });
     });
-  }, [newProductName, newProductCategory, entries, pushToast]);
+  }, [newProductName, newProductCategory, entries, pushToast, setEntries]);
 
   const shoppingLineas = useMemo(() => new Set(shoppingList.map((i) => i.linea)), [shoppingList]);
   const shoppingNames = useMemo(
@@ -395,11 +330,11 @@ export default function App() {
     setSelected(new Set());
     setAddMsg(`Added ${items.length} item${items.length > 1 ? "s" : ""}`);
     setTimeout(() => setAddMsg(""), 2000);
-  }, [entries, filteredSelected]);
+  }, [entries, filteredSelected, setShoppingList]);
   const addSingleToShoppingList = useCallback(
     (entry: Entry) => {
       if (isEntryInList(entry)) return;
-      const item: ShoppingItem = {
+      const item = {
         id: uid(),
         original: entry.original,
         linea: entry.linea,
@@ -411,7 +346,7 @@ export default function App() {
         setShoppingList((prev) => prev.filter((i) => i.id !== item.id)),
       );
     },
-    [isEntryInList, pushToast],
+    [isEntryInList, pushToast, setShoppingList],
   );
   const removeSingleFromShoppingList = useCallback(
     (entry: Entry) => {
@@ -426,246 +361,35 @@ export default function App() {
         setShoppingList((prev) => [...removed, ...prev]),
       );
     },
-    [shoppingList, pushToast],
+    [shoppingList, pushToast, setShoppingList],
   );
-  const toggleShoppingItem = useCallback(
-    (id: string) =>
-      setShoppingList((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item)),
-      ),
-    [],
+
+  // shopping list helpers proxied from hook
+  const handleFileLoad = useCallback(
+    () => handleShoppingFileLoad(fileInputRef.current),
+    [handleShoppingFileLoad],
   );
-  const removeShoppingItem = useCallback(
-    (id: string) => {
-      const item = shoppingList.find((i) => i.id === id);
-      if (!item) return;
-      setShoppingList((prev) => prev.filter((i) => i.id !== id));
-      pushToast(`"${item.original}" removed from list`, () => setShoppingList((p) => [...p, item]));
-    },
-    [shoppingList, pushToast],
-  );
-  const clearCheckedItems = useCallback(() => {
-    const removed = shoppingList.filter((i) => i.checked);
-    if (!removed.length) return;
-    setShoppingList((prev) => prev.filter((i) => !i.checked));
-    pushToast(`${removed.length} checked item${removed.length > 1 ? "s" : ""} removed`, () =>
-      setShoppingList((p) => [...p, ...removed]),
-    );
-  }, [shoppingList, pushToast]);
-  const clearAllItems = useCallback(() => setClearAllConfirm(true), []);
-  const confirmClearAll = useCallback(() => {
-    setClearAllConfirm(false);
-    const items = shoppingList;
-    if (!items.length) return;
-    setShoppingList([]);
-    pushToast(`Cleared ${items.length} item${items.length > 1 ? "s" : ""} from list`, () =>
-      setShoppingList(items),
-    );
-  }, [shoppingList, pushToast]);
   const loadListFromFile = useCallback(() => {
     const input = fileInputRef.current;
     if (!input) return;
     input.value = "";
     input.click();
   }, []);
-  const handleFileLoad = useCallback(() => {
-    const input = fileInputRef.current;
-    if (!input?.files?.[0]) return;
-    const file = input.files[0];
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const data = JSON.parse(reader.result as string);
-        const valid = parseShoppingListJson(data);
-        if (!valid) {
-          pushToast("No valid items found in file", () => {});
-          return;
-        }
-        const prev = shoppingList;
-        setShoppingList(valid);
-        pushToast(`Loaded ${valid.length} item${valid.length !== 1 ? "s" : ""} from file`, () =>
-          setShoppingList(prev),
-        );
-      } catch {
-        pushToast("Invalid JSON file", () => {});
-      }
-    };
-    reader.readAsText(file);
-  }, [shoppingList, pushToast]);
-  const downloadList = useCallback(() => {
-    const now = new Date();
-    const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
-    const data = { date: now.toISOString(), items: shoppingList };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `shopping-list-${ts}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [shoppingList]);
-  const openSaveModal = useCallback(() => {
-    if (shoppingList.length === 0) return;
-    const now = new Date();
-    const defaultName = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")} — ${shoppingList.length} items`;
-    setHistoryNameDraft(defaultName);
-    setShowSaveModal(true);
-  }, [shoppingList]);
-  const confirmSaveToHistory = useCallback(() => {
-    const name = historyNameDraft.trim() || new Date().toLocaleString();
-    const entry: SavedList = {
-      id: uid(),
-      name,
-      date: new Date().toISOString(),
-      items: shoppingList.map((i) => ({ ...i })),
-    };
-    if (history.length >= 50)
-      pushToast("History limit (50) reached — oldest will be trimmed", () => {});
-    const next = [entry, ...history].slice(0, 50);
-    setHistory(next);
-    setShowSaveModal(false);
-    setHistoryOpen(true);
-    pushToast(`Saved "${name}" to history`, () =>
-      setHistory((prev) => prev.filter((h) => h.id !== entry.id)),
-    );
-  }, [history, historyNameDraft, shoppingList, pushToast]);
-  const loadFromHistory = useCallback(
-    (id: string, mode: "replace" | "append" = "replace") => {
-      const entry = history.find((h) => h.id === id);
-      if (!entry) return;
-      const prev = shoppingList;
-      if (mode === "replace") {
-        const restored = entry.items.map((i) => ({ ...i, id: uid() }));
-        setShoppingList(restored);
-        pushToast(`Loaded "${entry.name}" (${restored.length} items)`, () => setShoppingList(prev));
-      } else {
-        const existingLineas = new Set(shoppingList.map((i) => i.linea));
-        const existingNames = new Set(shoppingList.map((i) => i.original.trim().toLowerCase()));
-        const toAdd = entry.items.filter(
-          (i) =>
-            !existingLineas.has(i.linea) && !existingNames.has(i.original.trim().toLowerCase()),
-        );
-        if (toAdd.length === 0) {
-          pushToast("All items already in list", () => {});
-          return;
-        }
-        const added = toAdd.map((i) => ({ ...i, id: uid() }));
-        setShoppingList((prev2) => [...prev2, ...added]);
-        pushToast(`Appended ${added.length} items from "${entry.name}"`, () =>
-          setShoppingList(prev),
-        );
-      }
-    },
-    [history, shoppingList, pushToast],
+  const clearAllItems = useCallback(() => setClearAllConfirm(true), []);
+  const confirmClearAll = useCallback(() => {
+    confirmClearAllHook(() => setClearAllConfirm(false));
+  }, [confirmClearAllHook]);
+
+  // db import helpers proxied
+  const loadDbFromFile = useCallback(
+    () => loadDbFromFileHook(dbFileInputRef),
+    [loadDbFromFileHook],
   );
-  const renameHistoryEntry = useCallback((id: string, newName: string) => {
-    const trimmed = newName.trim();
-    if (!trimmed) return;
-    setHistory((prev) => prev.map((h) => (h.id === id ? { ...h, name: trimmed } : h)));
-    setRenamingId(null);
-  }, []);
-  const deleteHistoryEntry = useCallback(
-    (id: string) => {
-      const removed = history.find((h) => h.id === id);
-      if (!removed) return;
-      setHistory((prev) => prev.filter((h) => h.id !== id));
-      setDeleteHistoryConfirm(null);
-      pushToast(`Deleted "${removed.name}" from history`, () =>
-        setHistory((prev) => [removed, ...prev]),
-      );
-    },
-    [history, pushToast],
+  const handleDbFileLoad = useCallback(
+    () => handleDbFileLoadFromInput(dbFileInputRef.current),
+    [handleDbFileLoadFromInput],
   );
-  const downloadHistoryEntry = useCallback(
-    (id: string) => {
-      const entry = history.find((h) => h.id === id);
-      if (!entry) return;
-      const blob = new Blob(
-        [JSON.stringify({ date: entry.date, name: entry.name, items: entry.items }, null, 2)],
-        { type: "application/json" },
-      );
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `shopping-list-${entry.date.slice(0, 16).replace("T", "_")}-${entry.name.replace(/[^a-z0-9]+/gi, "-").slice(0, 20)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-    [history],
-  );
-  const filteredHistory = useMemo(() => {
-    const q = historyQuery.toLowerCase().trim();
-    if (!q) return history;
-    return history.filter(
-      (h) =>
-        h.name.toLowerCase().includes(q) ||
-        h.date.toLowerCase().includes(q) ||
-        h.items.some((i) => i.original.toLowerCase().includes(q)),
-    );
-  }, [history, historyQuery]);
-  const handleDragStart = useCallback((e: React.DragEvent, idx: number) => {
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", String(idx));
-    (e.currentTarget as HTMLElement).classList.add("entry-dragging");
-  }, []);
-  const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    setDragOverIndex(idx);
-  }, []);
-  const handleDragLeave = useCallback(() => setDragOverIndex(null), []);
-  const handleDrop = useCallback((e: React.DragEvent, dropIdx: number) => {
-    e.preventDefault();
-    setDragOverIndex(null);
-    const from = parseInt(e.dataTransfer.getData("text/plain"), 10);
-    if (isNaN(from) || from === dropIdx) return;
-    setShoppingList((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(from, 1);
-      next.splice(dropIdx, 0, moved);
-      return next;
-    });
-  }, []);
-  const handleDragEnd = useCallback((e: React.DragEvent) => {
-    (e.currentTarget as HTMLElement).classList.remove("entry-dragging");
-    setDragOverIndex(null);
-  }, []);
-  const shoppingGrouped = useMemo(() => {
-    if (!groupByCategory) return null;
-    const map = new Map<string, ShoppingItem[]>();
-    for (const item of shoppingList) {
-      const cat = item.categoria || "Uncategorized";
-      if (!map.has(cat)) map.set(cat, []);
-      map.get(cat)!.push(item);
-    }
-    const groups: [string, ShoppingItem[]][] = [];
-    for (const cat of CATEGORIES) {
-      if (map.has(cat)) {
-        groups.push([cat, map.get(cat)!]);
-        map.delete(cat);
-      }
-    }
-    for (const [cat, items] of map) groups.push([cat, items]);
-    return groups;
-  }, [groupByCategory, shoppingList]);
-  const copyShoppingList = useCallback(async () => {
-    const text = (
-      groupByCategory && shoppingGrouped
-        ? shoppingGrouped.flatMap(([, items]) => items)
-        : shoppingList
-    )
-      .filter((item) => !item.checked)
-      .map((item) => `• ${item.original}`)
-      .join("\n");
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      alert("Could not copy to clipboard");
-    }
-  }, [shoppingList, groupByCategory, shoppingGrouped]);
+
   const unify = useCallback(() => {
     if (canonical === null || selected.size < 2) return;
     const name = canonicalInput.trim();
@@ -695,7 +419,7 @@ export default function App() {
     setSelected(new Set());
     setCanonical(null);
     setCanonicalInput("");
-  }, [canonical, selected, canonicalInput]);
+  }, [canonical, selected, canonicalInput, setEntries, setShoppingList]);
   const keepSelected = useCallback(() => {
     const selectedInFilter = new Set(
       [...selected].filter((l) => filtered.some((e) => e.linea === l)),
@@ -725,7 +449,7 @@ export default function App() {
       });
       setShoppingList((prev) => [...prev, ...removedShop]);
     });
-  }, [search, filtered, selected, entries, shoppingList, pushToast]);
+  }, [search, filtered, selected, entries, shoppingList, pushToast, setEntries, setShoppingList]);
   const deleteSelected = useCallback(() => {
     if (selected.size === 0) return;
     const n = selected.size;
@@ -746,103 +470,7 @@ export default function App() {
       });
       setShoppingList((prev) => [...prev, ...removedShop]);
     });
-  }, [selected, entries, shoppingList, pushToast]);
-  const downloadJSON = useCallback(() => {
-    const data = JSON.stringify(entries, null, 2);
-    localStorage.setItem(STORAGE_KEY, data);
-    const blob = new Blob([data], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `productos-${new Date().toISOString().slice(0, 16).replace("T", "_")}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [entries]);
-  const importEntries = useCallback(
-    (parsed: unknown) => {
-      const valid = parseEntriesJson(parsed);
-      if (!valid.length) {
-        pushToast("No valid products found in file", () => {});
-        return;
-      }
-      const prev = entries;
-      const result = mergeEntries(prev, valid);
-      if (result.type === "invalid") {
-        pushToast("No valid products found in file", () => {});
-        return;
-      }
-      if (result.type === "noop") {
-        pushToast(
-          result.skipped
-            ? `All ${result.skipped} products already exist — nothing imported`
-            : "Nothing to import",
-          () => {},
-        );
-        return;
-      }
-      if (result.type === "fresh") {
-        setEntries(result.entries);
-        pushToast(`Imported ${result.entries.length} products`, () => setEntries(prev));
-      } else {
-        setEntries(result.entries);
-        pushToast(
-          `Imported ${result.added} products${result.skipped ? ` (${result.skipped} duplicates skipped)` : ""}`,
-          () => setEntries(prev),
-        );
-      }
-    },
-    [entries, pushToast],
-  );
-
-  const loadDbFromFile = useCallback(() => {
-    const trigger = (input: HTMLInputElement) => {
-      input.value = "";
-      input.click();
-    };
-    const existing = dbFileInputRef.current;
-    if (existing) {
-      trigger(existing);
-      return;
-    }
-    const tmp = document.createElement("input");
-    tmp.type = "file";
-    tmp.accept = ".json";
-    tmp.style.display = "none";
-    tmp.onchange = () => {
-      const file = tmp.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const parsed = JSON.parse(reader.result as string);
-          importEntries(parsed);
-        } catch {
-          pushToast("Invalid JSON file", () => {});
-        }
-        tmp.remove();
-      };
-      reader.readAsText(file);
-    };
-    document.body.appendChild(tmp);
-    trigger(tmp);
-  }, [importEntries, pushToast]);
-
-  const handleDbFileLoad = useCallback(() => {
-    const input = dbFileInputRef.current;
-    if (!input?.files?.[0]) return;
-    const file = input.files[0];
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(reader.result as string);
-        importEntries(parsed);
-      } catch {
-        pushToast("Invalid JSON file", () => {});
-      }
-    };
-    reader.readAsText(file);
-  }, [importEntries, pushToast]);
-  const pending = shoppingList.filter((item) => !item.checked).length;
+  }, [selected, entries, shoppingList, pushToast, setEntries, setShoppingList]);
 
   if (loading) {
     return (
