@@ -33,11 +33,9 @@ function fail(msg) {
 }
 
 if (mode === "dev") {
-  if (!force && (hasPidfile("/tmp/shoplist-preview.pid") || isPortInUse(PORT_API))) {
-    fail(
-      `Preview is running on :${PORT_API}. Stop preview before starting dev.\n  → ./shopier.sh stop  (or ./scripts/stop-preview.sh)`,
-    );
-  }
+  // Dev now serves /api itself on :5173 via vite plugin — no need for :4173.
+  // Don't block dev if preview is running (they share base/shoplist.db, but WAL allows concurrent reads).
+  // Only warn if you explicitly want exclusive mode: use --force to skip.
 } else if (mode === "preview" || mode === "server") {
   if (!force && isPortInUse(PORT_VITE)) {
     fail(
