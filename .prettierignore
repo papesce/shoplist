@@ -1,0 +1,7 @@
+dist
+node_modules
+base
+backups
+Shoplist.app
+package-lock.json
+.remember

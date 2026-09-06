@@ -16,8 +16,9 @@ const SEPARATORS = /^[\s\-–—_—=*]{3,}$/;
 const PRICE = /^\d{3,6}(\.\d{2})?$/;
 const PHONE = /^\d{7,}$/;
 const URL = /^https?:\/\//i;
-const NOTES = /^(desde el|domingo|lengua|dolor|tos|certificado|recien|rueda reparar|llevar|gotas|certificado|cargar nafta|peluqueria|mama|carne|varduras|merienda|vino|panaderia|nafta|peaje|cena|viaje|hotel|campo|alta italia|agrimensor|imago|foco|santa narcisa|aluquiler|caramelos|bolsitas|vela|una pizza|4 carne|2 caprese|1 verdura|1 queso|pan rayado|don sarur|masitas|chocolatada|jugo|luz led|unodostres|entran|se retiran|duermen|hace|salen|no hay|no hace|campamento|bicicletas|baja\s|wagq|kuz7|desde el sabado|que comidas)/i;
-const MIXED_NUM = /^\d{4,6}\s/;
+const NOTES =
+  /^(desde el|domingo|lengua|dolor|tos|certificado|recien|rueda reparar|llevar|gotas|certificado|cargar nafta|peluqueria|mama|carne|varduras|merienda|vino|panaderia|nafta|peaje|cena|viaje|hotel|campo|alta italia|agrimensor|imago|foco|santa narcisa|aluquiler|caramelos|bolsitas|vela|una pizza|4 carne|2 caprese|1 verdura|1 queso|pan rayado|don sarur|masitas|chocolatada|jugo|luz led|unodostres|entran|se retiran|duermen|hace|salen|no hay|no hace|campamento|bicicletas|baja\s|wagq|kuz7|desde el sabado|que comidas)/i;
+const _MIXED_NUM = /^\d{4,6}\s/;
 
 const raw = readFileSync(TXT, "utf-8");
 const lines = raw.split("\n");

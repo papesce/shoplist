@@ -26,6 +26,7 @@ import {
   Search,
 } from "lucide-react";
 import type { Entry, ShoppingItem, Summary, SavedList } from "./types";
+import { api } from "./api";
 
 const STORAGE_KEY = "shopier-productos";
 const SHOPPING_KEY = "shopier-lista";
@@ -57,35 +58,35 @@ const CATEGORIES = [
 ];
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
-  "Almacén":    { bg: "#fef3c7", text: "#92400e" },
-  "Bebidas":    { bg: "#dbeafe", text: "#1e40af" },
-  "Carnicería": { bg: "#fee2e2", text: "#991b1b" },
-  "Congelados": { bg: "#e0e7ff", text: "#3730a3" },
-  "Fiambrería": { bg: "#fce7f3", text: "#9d174d" },
-  "Higiene":    { bg: "#d1fae5", text: "#065f46" },
-  "Lácteos":    { bg: "#ede9fe", text: "#5b21b6" },
-  "Limpieza":   { bg: "#ccfbf1", text: "#134e4a" },
-  "Mascotas":   { bg: "#fed7aa", text: "#9a3412" },
-  "Otros":      { bg: "#f3f4f6", text: "#374151" },
-  "Panadería":  { bg: "#fef9c3", text: "#854d0e" },
-  "Snacks":     { bg: "#f5d0fe", text: "#701a75" },
-  "Verdulería": { bg: "#dcfce7", text: "#166534" },
+  Almacén: { bg: "#fef3c7", text: "#92400e" },
+  Bebidas: { bg: "#dbeafe", text: "#1e40af" },
+  Carnicería: { bg: "#fee2e2", text: "#991b1b" },
+  Congelados: { bg: "#e0e7ff", text: "#3730a3" },
+  Fiambrería: { bg: "#fce7f3", text: "#9d174d" },
+  Higiene: { bg: "#d1fae5", text: "#065f46" },
+  Lácteos: { bg: "#ede9fe", text: "#5b21b6" },
+  Limpieza: { bg: "#ccfbf1", text: "#134e4a" },
+  Mascotas: { bg: "#fed7aa", text: "#9a3412" },
+  Otros: { bg: "#f3f4f6", text: "#374151" },
+  Panadería: { bg: "#fef9c3", text: "#854d0e" },
+  Snacks: { bg: "#f5d0fe", text: "#701a75" },
+  Verdulería: { bg: "#dcfce7", text: "#166534" },
 };
 
 const CATEGORY_COLORS_DARK: Record<string, { bg: string; text: string }> = {
-  "Almacén":    { bg: "#78350f", text: "#fef3c7" },
-  "Bebidas":    { bg: "#1e3a8a", text: "#dbeafe" },
-  "Carnicería": { bg: "#7f1d1d", text: "#fee2e2" },
-  "Congelados": { bg: "#3730a3", text: "#e0e7ff" },
-  "Fiambrería": { bg: "#831843", text: "#fce7f3" },
-  "Higiene":    { bg: "#064e3b", text: "#d1fae5" },
-  "Lácteos":    { bg: "#4c1d95", text: "#ede9fe" },
-  "Limpieza":   { bg: "#134e4a", text: "#ccfbf1" },
-  "Mascotas":   { bg: "#7c2d12", text: "#fed7aa" },
-  "Otros":      { bg: "#374151", text: "#f3f4f6" },
-  "Panadería":  { bg: "#713f12", text: "#fef9c3" },
-  "Snacks":     { bg: "#701a75", text: "#f5d0fe" },
-  "Verdulería": { bg: "#14532d", text: "#dcfce7" },
+  Almacén: { bg: "#78350f", text: "#fef3c7" },
+  Bebidas: { bg: "#1e3a8a", text: "#dbeafe" },
+  Carnicería: { bg: "#7f1d1d", text: "#fee2e2" },
+  Congelados: { bg: "#3730a3", text: "#e0e7ff" },
+  Fiambrería: { bg: "#831843", text: "#fce7f3" },
+  Higiene: { bg: "#064e3b", text: "#d1fae5" },
+  Lácteos: { bg: "#4c1d95", text: "#ede9fe" },
+  Limpieza: { bg: "#134e4a", text: "#ccfbf1" },
+  Mascotas: { bg: "#7c2d12", text: "#fed7aa" },
+  Otros: { bg: "#374151", text: "#f3f4f6" },
+  Panadería: { bg: "#713f12", text: "#fef9c3" },
+  Snacks: { bg: "#701a75", text: "#f5d0fe" },
+  Verdulería: { bg: "#14532d", text: "#dcfce7" },
 };
 
 function getCategoryColors(isDark: boolean) {
@@ -130,7 +131,7 @@ function highlight(text: string, query: string) {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const parts = text.split(new RegExp(`(${escaped})`, "gi"));
   return parts.map((part, i) =>
-    part.toLowerCase() === query.toLowerCase() ? <mark key={i}>{part}</mark> : part
+    part.toLowerCase() === query.toLowerCase() ? <mark key={i}>{part}</mark> : part,
   );
 }
 
@@ -149,13 +150,12 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState<Entry[]>(() => loadJSON<Entry[]>(STORAGE_KEY, []));
   const [loading, setLoading] = useState(entries.length === 0);
-  const [fetchError, setFetchError] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [canonical, setCanonical] = useState<number | null>(null);
   const [canonicalInput, setCanonicalInput] = useState("");
 
-  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(
-    () => loadJSON<ShoppingItem[]>(SHOPPING_KEY, [])
+  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>(() =>
+    loadJSON<ShoppingItem[]>(SHOPPING_KEY, []),
   );
   const [addMsg, setAddMsg] = useState("");
   const [copied, setCopied] = useState(false);
@@ -167,7 +167,10 @@ export default function App() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [categoryMsg, setCategoryMsg] = useState("");
   const [catPopover, setCatPopover] = useState<string | null>(null);
-  const [catPopoverPos, setCatPopoverPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [catPopoverPos, setCatPopoverPos] = useState<{ top: number; left: number }>({
+    top: 0,
+    left: 0,
+  });
   const [showAddModal, setShowAddModal] = useState(false);
   const [newProductName, setNewProductName] = useState("");
   const [newProductCategory, setNewProductCategory] = useState("");
@@ -231,10 +234,19 @@ export default function App() {
   const topMenuRef = useRef<HTMLButtonElement>(null);
   const unifyCatRef = useRef<HTMLButtonElement>(null);
   const addModalCatRef = useRef<HTMLButtonElement>(null);
-  const [shoppingMenuPos, setShoppingMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [shoppingMenuPos, setShoppingMenuPos] = useState<{ top: number; left: number }>({
+    top: 0,
+    left: 0,
+  });
   const [topMenuPos, setTopMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const [unifyCatPos, setUnifyCatPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const [addModalCatPos, setAddModalCatPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [unifyCatPos, setUnifyCatPos] = useState<{ top: number; left: number }>({
+    top: 0,
+    left: 0,
+  });
+  const [addModalCatPos, setAddModalCatPos] = useState<{ top: number; left: number }>({
+    top: 0,
+    left: 0,
+  });
   const [leftPct, setLeftPct] = useState(50);
   const panelsRef = useRef<HTMLDivElement>(null);
   const dbListRef = useRef<HTMLDivElement>(null);
@@ -266,17 +278,14 @@ export default function App() {
     });
   }, []);
 
-  const pushToast = useCallback(
-    (message: string, undo: () => void, duration = 5500) => {
-      const id = uid();
-      const timeoutId = setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, duration);
-      setToasts((prev) => [...prev, { id, message, undo, timeoutId }]);
-      setUndoStack((prev) => [...prev.slice(-19), { description: message, undo }]);
-    },
-    []
-  );
+  const pushToast = useCallback((message: string, undo: () => void, duration = 5500) => {
+    const id = uid();
+    const timeoutId = setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, duration);
+    setToasts((prev) => [...prev, { id, message, undo, timeoutId }]);
+    setUndoStack((prev) => [...prev.slice(-19), { description: message, undo }]);
+  }, []);
 
   const performUndo = useCallback(() => {
     setUndoStack((prev) => {
@@ -305,29 +314,21 @@ export default function App() {
     }
     const oldName = prevEntry.original;
     setEntries((prev) => {
-      const next = prev.map((e) =>
-        e.linea === linea ? { ...e, original: trimmed } : e
-      );
+      const next = prev.map((e) => (e.linea === linea ? { ...e, original: trimmed } : e));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
     });
     setShoppingList((prev) =>
-      prev.map((item) =>
-        item.linea === linea ? { ...item, original: trimmed } : item
-      )
+      prev.map((item) => (item.linea === linea ? { ...item, original: trimmed } : item)),
     );
     pushToast(`Renamed "${oldName}" → "${trimmed}"`, () => {
       setEntries((prev) => {
-        const next = prev.map((e) =>
-          e.linea === linea ? { ...e, original: oldName } : e
-        );
+        const next = prev.map((e) => (e.linea === linea ? { ...e, original: oldName } : e));
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         return next;
       });
       setShoppingList((prev) =>
-        prev.map((item) =>
-          item.linea === linea ? { ...item, original: oldName } : item
-        )
+        prev.map((item) => (item.linea === linea ? { ...item, original: oldName } : item)),
       );
     });
     setEditingEntry(null);
@@ -344,36 +345,92 @@ export default function App() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [performUndo]);
 
+  // SQLite-backed persistence: load from /api first, fallback to localStorage/seed
+  const apiReady = useRef(false);
   useEffect(() => {
-    if (entries.length > 0) return;
-    fetch("/base/productos.json")
-      .then((r) => {
-        if (!r.ok) throw new Error("fetch failed");
-        return r.json();
-      })
-      .then((data) => {
-        const list = Array.isArray(data) ? (data as Entry[]) : [];
-        setEntries(list);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-        setLoading(false);
-      })
-      .catch(() => {
-        import("../base/productos.json")
-          .then((mod) => {
-            const list = (Array.isArray(mod.default) ? mod.default : []) as Entry[];
-            setEntries(list);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-            setLoading(false);
-          })
-          .catch(() => {
-            setFetchError(true);
-            setLoading(false);
-          });
-      });
-  }, [entries.length]);
+    let cancelled = false;
+    (async () => {
+      const [apiEntries, apiList, apiHist] = await Promise.all([
+        api.getEntries(),
+        api.getShoppingList(),
+        api.getHistory(),
+      ]);
+      if (cancelled) return;
+      const lsEntries = loadJSON<Entry[]>(STORAGE_KEY, []);
+      const lsList = loadJSON<ShoppingItem[]>(SHOPPING_KEY, []);
+      const lsHist = loadJSON<SavedList[]>(HISTORY_KEY, []);
+      // If API has data, use it (SQLite is truth)
+      if (apiEntries !== null) {
+        if (apiEntries.length > 0) {
+          setEntries(apiEntries);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(apiEntries));
+        } else if (lsEntries.length > 0) {
+          // DB empty but localStorage has data -> migrate
+          setEntries(lsEntries);
+          api.setEntries(lsEntries);
+        } else {
+          // Both empty: try optional seed, otherwise stay empty (no error)
+          fetch("/base/productos.json")
+            .then((r) => (r.ok ? r.json() : Promise.reject()))
+            .then((data) => {
+              const list = Array.isArray(data) ? (data as Entry[]) : [];
+              if (list.length) {
+                setEntries(list);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+                api.setEntries(list);
+              }
+              setLoading(false);
+            })
+            .catch(() => {
+              // No seed file -> always-empty is valid, don't show fetchError
+              setLoading(false);
+            });
+          // also migrate list/history if present
+          if (lsList.length) api.setShoppingList(lsList);
+          if (lsHist.length) api.setHistory(lsHist);
+          apiReady.current = true;
+          if (apiEntries !== null) setLoading(false);
+          return;
+        }
+      }
+      if (apiList !== null) {
+        if (apiList.length > 0) setShoppingList(apiList);
+        else if (lsList.length > 0) {
+          setShoppingList(lsList);
+          api.setShoppingList(lsList);
+        }
+      }
+      if (apiHist !== null) {
+        if (apiHist.length > 0) setHistory(apiHist);
+        else if (lsHist.length > 0) {
+          setHistory(lsHist);
+          api.setHistory(lsHist);
+        }
+      }
+      // migrate any localStorage that DB missed (bulk)
+      if (
+        (lsEntries.length && apiEntries?.length === 0) ||
+        (lsList.length && apiList?.length === 0) ||
+        (lsHist.length && apiHist?.length === 0)
+      ) {
+        api.migrate({ entries: lsEntries, shoppingList: lsList, history: lsHist });
+      }
+      apiReady.current = true;
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
+  // Persist to SQLite (debounced) + keep localStorage as cache
   useEffect(() => {
     localStorage.setItem(SHOPPING_KEY, JSON.stringify(shoppingList));
+    if (!apiReady.current) return;
+    const t = setTimeout(() => {
+      api.setShoppingList(shoppingList);
+    }, 400);
+    return () => clearTimeout(t);
   }, [shoppingList]);
 
   useEffect(() => {
@@ -382,7 +439,23 @@ export default function App() {
     } catch {
       pushToast("History storage full — delete old entries or export", () => {});
     }
-  }, [history]);
+    if (!apiReady.current) return;
+    const t = setTimeout(() => {
+      api.setHistory(history);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [history, pushToast]);
+
+  // entries persistence: sync to SQLite on change (keep localStorage cache)
+  useEffect(() => {
+    if (!entries.length) return;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    if (!apiReady.current) return;
+    const t = setTimeout(() => {
+      api.setEntries(entries);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [entries]);
 
   useEffect(() => {
     dbListRef.current?.scrollTo({ top: 0 });
@@ -391,7 +464,7 @@ export default function App() {
   useEffect(() => {
     if (!catPopover) return;
     const close = (e: MouseEvent) => {
-      if ((e.target as Element).closest('.cat-popover, .cat-badge')) return;
+      if ((e.target as Element).closest(".cat-popover, .cat-badge")) return;
       setCatPopover(null);
     };
     document.addEventListener("mousedown", close);
@@ -408,7 +481,7 @@ export default function App() {
       return prev.map((item) =>
         !item.categoria && byLinea.has(item.linea)
           ? { ...item, categoria: byLinea.get(item.linea) }
-          : item
+          : item,
       );
     });
   }, [entries]);
@@ -429,7 +502,7 @@ export default function App() {
 
   const activeCategories = useMemo(
     () => CATEGORIES.filter((cat) => entries.some((e) => e.categoria === cat)),
-    [entries]
+    [entries],
   );
 
   const sortedCategories = useMemo(() => {
@@ -446,7 +519,7 @@ export default function App() {
   useEffect(() => {
     if (!shoppingMenuOpen && !topMenuOpen && !unifyCatOpen && !addModalCatOpen) return;
     const close = (e: MouseEvent) => {
-      if ((e.target as Element).closest('.dropdown, .dropdown-menu')) return;
+      if ((e.target as Element).closest(".dropdown, .dropdown-menu")) return;
       setShoppingMenuOpen(false);
       setTopMenuOpen(false);
       setUnifyCatOpen(false);
@@ -460,38 +533,31 @@ export default function App() {
     (cat: string) => {
       if (selected.size === 0) return;
       setEntries((prev) => {
-        const next = prev.map((e) =>
-          selected.has(e.linea) ? { ...e, categoria: cat } : e
-        );
+        const next = prev.map((e) => (selected.has(e.linea) ? { ...e, categoria: cat } : e));
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         return next;
       });
       setShoppingList((prev) =>
-        prev.map((item) =>
-          selected.has(item.linea) ? { ...item, categoria: cat } : item
-        )
+        prev.map((item) => (selected.has(item.linea) ? { ...item, categoria: cat } : item)),
       );
       setCategoryMsg(
-        `Category "${cat}" assigned to ${selected.size} entr${selected.size !== 1 ? "ies" : "y"}`
+        `Category "${cat}" assigned to ${selected.size} entr${selected.size !== 1 ? "ies" : "y"}`,
       );
       setTimeout(() => setCategoryMsg(""), 2000);
     },
-    [selected]
+    [selected],
   );
 
-  const setCategoryItem = useCallback(
-    (linea: number, cat: string) => {
-      setEntries((prev) => {
-        const next = prev.map((e) => e.linea === linea ? { ...e, categoria: cat } : e);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        return next;
-      });
-      setShoppingList((prev) =>
-        prev.map((item) => item.linea === linea ? { ...item, categoria: cat } : item)
-      );
-    },
-    []
-  );
+  const setCategoryItem = useCallback((linea: number, cat: string) => {
+    setEntries((prev) => {
+      const next = prev.map((e) => (e.linea === linea ? { ...e, categoria: cat } : e));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+    setShoppingList((prev) =>
+      prev.map((item) => (item.linea === linea ? { ...item, categoria: cat } : item)),
+    );
+  }, []);
 
   const openAddModal = useCallback((prefillName?: string) => {
     setNewProductName(prefillName ?? "");
@@ -526,19 +592,26 @@ export default function App() {
   }, [newProductName, newProductCategory, entries, pushToast]);
 
   const shoppingLineas = useMemo(() => new Set(shoppingList.map((i) => i.linea)), [shoppingList]);
-  const shoppingNames = useMemo(() => new Set(shoppingList.map((i) => i.original.trim().toLowerCase())), [shoppingList]);
-  const isEntryInList = useCallback((e: Entry) => shoppingLineas.has(e.linea) || shoppingNames.has(e.original.trim().toLowerCase()), [shoppingLineas, shoppingNames]);
+  const shoppingNames = useMemo(
+    () => new Set(shoppingList.map((i) => i.original.trim().toLowerCase())),
+    [shoppingList],
+  );
+  const isEntryInList = useCallback(
+    (e: Entry) => shoppingLineas.has(e.linea) || shoppingNames.has(e.original.trim().toLowerCase()),
+    [shoppingLineas, shoppingNames],
+  );
 
   const filteredSelected = useMemo(
     () => new Set([...selected].filter((l) => filtered.some((e) => e.linea === l))),
-    [selected, filtered]
+    [selected, filtered],
   );
 
   const selectedCount = selected.size;
   const filteredSelectedCount = filteredSelected.size;
   const hasCanonical = canonical !== null;
   const canUnify = selectedCount >= 2 && hasCanonical && canonicalInput.trim().length > 0;
-  const canKeepSelected = search !== "" && filteredSelectedCount > 0 && filteredSelectedCount < filtered.length;
+  const canKeepSelected =
+    search !== "" && filteredSelectedCount > 0 && filteredSelectedCount < filtered.length;
 
   const toggleSelected = useCallback((linea: number) => {
     setSelected((prev) => {
@@ -557,14 +630,20 @@ export default function App() {
       setCanonicalInput(entry.original);
       setSelected((prev) => (prev.has(linea) ? prev : new Set(prev).add(linea)));
     },
-    [entries]
+    [entries],
   );
 
   const addToShoppingList = useCallback(() => {
     const items = entries.filter((e) => filteredSelected.has(e.linea));
     if (!items.length) return;
     setShoppingList((prev) => [
-      ...items.map((e) => ({ id: uid(), original: e.original, linea: e.linea, checked: false, categoria: e.categoria })),
+      ...items.map((e) => ({
+        id: uid(),
+        original: e.original,
+        linea: e.linea,
+        checked: false,
+        categoria: e.categoria,
+      })),
       ...prev,
     ]);
     setSelected(new Set());
@@ -572,29 +651,43 @@ export default function App() {
     setTimeout(() => setAddMsg(""), 2000);
   }, [entries, filteredSelected]);
 
-  const addSingleToShoppingList = useCallback((entry: Entry) => {
-    if (isEntryInList(entry)) return;
-    const item: ShoppingItem = { id: uid(), original: entry.original, linea: entry.linea, checked: false, categoria: entry.categoria };
-    setShoppingList((prev) => [item, ...prev]);
-    pushToast(`"${entry.original}" added to list`, () => {
-      setShoppingList((prev) => prev.filter((i) => i.id !== item.id));
-    });
-  }, [isEntryInList, pushToast]);
+  const addSingleToShoppingList = useCallback(
+    (entry: Entry) => {
+      if (isEntryInList(entry)) return;
+      const item: ShoppingItem = {
+        id: uid(),
+        original: entry.original,
+        linea: entry.linea,
+        checked: false,
+        categoria: entry.categoria,
+      };
+      setShoppingList((prev) => [item, ...prev]);
+      pushToast(`"${entry.original}" added to list`, () => {
+        setShoppingList((prev) => prev.filter((i) => i.id !== item.id));
+      });
+    },
+    [isEntryInList, pushToast],
+  );
 
-  const removeSingleFromShoppingList = useCallback((entry: Entry) => {
-    const key = entry.original.trim().toLowerCase();
-    const removed = shoppingList.filter((i) => i.linea === entry.linea || i.original.trim().toLowerCase() === key);
-    if (!removed.length) return;
-    const removedIds = new Set(removed.map((i) => i.id));
-    setShoppingList((prev) => prev.filter((i) => !removedIds.has(i.id)));
-    pushToast(`"${entry.original}" removed from list`, () => {
-      setShoppingList((prev) => [...removed, ...prev]);
-    });
-  }, [shoppingList, pushToast]);
+  const removeSingleFromShoppingList = useCallback(
+    (entry: Entry) => {
+      const key = entry.original.trim().toLowerCase();
+      const removed = shoppingList.filter(
+        (i) => i.linea === entry.linea || i.original.trim().toLowerCase() === key,
+      );
+      if (!removed.length) return;
+      const removedIds = new Set(removed.map((i) => i.id));
+      setShoppingList((prev) => prev.filter((i) => !removedIds.has(i.id)));
+      pushToast(`"${entry.original}" removed from list`, () => {
+        setShoppingList((prev) => [...removed, ...prev]);
+      });
+    },
+    [shoppingList, pushToast],
+  );
 
   const toggleShoppingItem = useCallback((id: string) => {
     setShoppingList((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item))
+      prev.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item)),
     );
   }, []);
 
@@ -603,21 +696,17 @@ export default function App() {
       const item = shoppingList.find((i) => i.id === id);
       if (!item) return;
       setShoppingList((prev) => prev.filter((i) => i.id !== id));
-      pushToast(
-        `"${item.original}" removed from list`,
-        () => setShoppingList((p) => [...p, item])
-      );
+      pushToast(`"${item.original}" removed from list`, () => setShoppingList((p) => [...p, item]));
     },
-    [shoppingList, pushToast]
+    [shoppingList, pushToast],
   );
 
   const clearCheckedItems = useCallback(() => {
     const removed = shoppingList.filter((i) => i.checked);
     if (!removed.length) return;
     setShoppingList((prev) => prev.filter((i) => !i.checked));
-    pushToast(
-      `${removed.length} checked item${removed.length > 1 ? "s" : ""} removed`,
-      () => setShoppingList((p) => [...p, ...removed])
+    pushToast(`${removed.length} checked item${removed.length > 1 ? "s" : ""} removed`, () =>
+      setShoppingList((p) => [...p, ...removed]),
     );
   }, [shoppingList, pushToast]);
 
@@ -630,9 +719,8 @@ export default function App() {
     const items = shoppingList;
     if (!items.length) return;
     setShoppingList([]);
-    pushToast(
-      `Cleared ${items.length} item${items.length > 1 ? "s" : ""} from list`,
-      () => setShoppingList(items)
+    pushToast(`Cleared ${items.length} item${items.length > 1 ? "s" : ""} from list`, () =>
+      setShoppingList(items),
     );
   }, [shoppingList, pushToast]);
 
@@ -659,7 +747,7 @@ export default function App() {
             typeof (item as ShoppingItem).id === "string" &&
             typeof (item as ShoppingItem).original === "string" &&
             typeof (item as ShoppingItem).linea === "number" &&
-            typeof (item as ShoppingItem).checked === "boolean"
+            typeof (item as ShoppingItem).checked === "boolean",
         );
         if (!valid.length) {
           pushToast("No valid items found in file", () => {});
@@ -667,9 +755,8 @@ export default function App() {
         }
         const prev = shoppingList;
         setShoppingList(valid);
-        pushToast(
-          `Loaded ${valid.length} item${valid.length !== 1 ? "s" : ""} from file`,
-          () => setShoppingList(prev)
+        pushToast(`Loaded ${valid.length} item${valid.length !== 1 ? "s" : ""} from file`, () =>
+          setShoppingList(prev),
         );
       } catch {
         pushToast("Invalid JSON file", () => {});
@@ -719,59 +806,83 @@ export default function App() {
     });
   }, [history, historyNameDraft, shoppingList, pushToast]);
 
-  const loadFromHistory = useCallback((id: string, mode: "replace" | "append" = "replace") => {
-    const entry = history.find((h) => h.id === id);
-    if (!entry) return;
-    const prev = shoppingList;
-    if (mode === "replace") {
-      const restored = entry.items.map((i) => ({ ...i, id: uid() }));
-      setShoppingList(restored);
-      pushToast(`Loaded "${entry.name}" (${restored.length} items)`, () => setShoppingList(prev));
-    } else {
-      const existingLineas = new Set(shoppingList.map((i) => i.linea));
-      const existingNames = new Set(shoppingList.map((i) => i.original.trim().toLowerCase()));
-      const toAdd = entry.items.filter((i) => !existingLineas.has(i.linea) && !existingNames.has(i.original.trim().toLowerCase()));
-      if (toAdd.length === 0) {
-        pushToast("All items already in list", () => {});
-        return;
+  const loadFromHistory = useCallback(
+    (id: string, mode: "replace" | "append" = "replace") => {
+      const entry = history.find((h) => h.id === id);
+      if (!entry) return;
+      const prev = shoppingList;
+      if (mode === "replace") {
+        const restored = entry.items.map((i) => ({ ...i, id: uid() }));
+        setShoppingList(restored);
+        pushToast(`Loaded "${entry.name}" (${restored.length} items)`, () => setShoppingList(prev));
+      } else {
+        const existingLineas = new Set(shoppingList.map((i) => i.linea));
+        const existingNames = new Set(shoppingList.map((i) => i.original.trim().toLowerCase()));
+        const toAdd = entry.items.filter(
+          (i) =>
+            !existingLineas.has(i.linea) && !existingNames.has(i.original.trim().toLowerCase()),
+        );
+        if (toAdd.length === 0) {
+          pushToast("All items already in list", () => {});
+          return;
+        }
+        const added = toAdd.map((i) => ({ ...i, id: uid() }));
+        setShoppingList((prev2) => [...prev2, ...added]);
+        pushToast(`Appended ${added.length} items from "${entry.name}"`, () =>
+          setShoppingList(prev),
+        );
       }
-      const added = toAdd.map((i) => ({ ...i, id: uid() }));
-      setShoppingList((prev2) => [...prev2, ...added]);
-      pushToast(`Appended ${added.length} items from "${entry.name}"`, () => setShoppingList(prev));
-    }
-  }, [history, shoppingList, pushToast]);
+    },
+    [history, shoppingList, pushToast],
+  );
 
   const renameHistoryEntry = useCallback((id: string, newName: string) => {
     const trimmed = newName.trim();
     if (!trimmed) return;
-    setHistory((prev) => prev.map((h) => h.id === id ? { ...h, name: trimmed } : h));
+    setHistory((prev) => prev.map((h) => (h.id === id ? { ...h, name: trimmed } : h)));
     setRenamingId(null);
   }, []);
 
-  const deleteHistoryEntry = useCallback((id: string) => {
-    const removed = history.find((h) => h.id === id);
-    if (!removed) return;
-    setHistory((prev) => prev.filter((h) => h.id !== id));
-    setDeleteHistoryConfirm(null);
-    pushToast(`Deleted "${removed.name}" from history`, () => setHistory((prev) => [removed, ...prev]));
-  }, [history, pushToast]);
+  const deleteHistoryEntry = useCallback(
+    (id: string) => {
+      const removed = history.find((h) => h.id === id);
+      if (!removed) return;
+      setHistory((prev) => prev.filter((h) => h.id !== id));
+      setDeleteHistoryConfirm(null);
+      pushToast(`Deleted "${removed.name}" from history`, () =>
+        setHistory((prev) => [removed, ...prev]),
+      );
+    },
+    [history, pushToast],
+  );
 
-  const downloadHistoryEntry = useCallback((id: string) => {
-    const entry = history.find((h) => h.id === id);
-    if (!entry) return;
-    const blob = new Blob([JSON.stringify({ date: entry.date, name: entry.name, items: entry.items }, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `shopping-list-${entry.date.slice(0, 16).replace("T", "_")}-${entry.name.replace(/[^a-z0-9]+/gi, "-").slice(0, 20)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [history]);
+  const downloadHistoryEntry = useCallback(
+    (id: string) => {
+      const entry = history.find((h) => h.id === id);
+      if (!entry) return;
+      const blob = new Blob(
+        [JSON.stringify({ date: entry.date, name: entry.name, items: entry.items }, null, 2)],
+        { type: "application/json" },
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `shopping-list-${entry.date.slice(0, 16).replace("T", "_")}-${entry.name.replace(/[^a-z0-9]+/gi, "-").slice(0, 20)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    [history],
+  );
 
   const filteredHistory = useMemo(() => {
     const q = historyQuery.toLowerCase().trim();
     if (!q) return history;
-    return history.filter((h) => h.name.toLowerCase().includes(q) || h.date.toLowerCase().includes(q) || h.items.some((i) => i.original.toLowerCase().includes(q)));
+    return history.filter(
+      (h) =>
+        h.name.toLowerCase().includes(q) ||
+        h.date.toLowerCase().includes(q) ||
+        h.items.some((i) => i.original.toLowerCase().includes(q)),
+    );
   }, [history, historyQuery]);
 
   const handleDragStart = useCallback((e: React.DragEvent, idx: number) => {
@@ -790,21 +901,18 @@ export default function App() {
     setDragOverIndex(null);
   }, []);
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent, dropIdx: number) => {
-      e.preventDefault();
-      setDragOverIndex(null);
-      const from = parseInt(e.dataTransfer.getData("text/plain"), 10);
-      if (isNaN(from) || from === dropIdx) return;
-      setShoppingList((prev) => {
-        const next = [...prev];
-        const [moved] = next.splice(from, 1);
-        next.splice(dropIdx, 0, moved);
-        return next;
-      });
-    },
-    []
-  );
+  const handleDrop = useCallback((e: React.DragEvent, dropIdx: number) => {
+    e.preventDefault();
+    setDragOverIndex(null);
+    const from = parseInt(e.dataTransfer.getData("text/plain"), 10);
+    if (isNaN(from) || from === dropIdx) return;
+    setShoppingList((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(dropIdx, 0, moved);
+      return next;
+    });
+  }, []);
 
   const handleDragEnd = useCallback((e: React.DragEvent) => {
     (e.currentTarget as HTMLElement).classList.remove("entry-dragging");
@@ -833,9 +941,10 @@ export default function App() {
   }, [groupByCategory, shoppingList]);
 
   const copyShoppingList = useCallback(async () => {
-    const text = (groupByCategory && shoppingGrouped
-      ? shoppingGrouped.flatMap(([, items]) => items)
-      : shoppingList
+    const text = (
+      groupByCategory && shoppingGrouped
+        ? shoppingGrouped.flatMap(([, items]) => items)
+        : shoppingList
     )
       .filter((item) => !item.checked)
       .map((item) => `• ${item.original}`)
@@ -875,8 +984,8 @@ export default function App() {
       prev.map((item) =>
         item.linea === (selected.has(canonical) ? canonical : [...selected][0])
           ? { ...item, original: name }
-          : item
-      )
+          : item,
+      ),
     );
 
     setSelected(new Set());
@@ -886,11 +995,11 @@ export default function App() {
 
   const keepSelected = useCallback(() => {
     const selectedInFilter = new Set(
-      [...selected].filter((l) => filtered.some((e) => e.linea === l))
+      [...selected].filter((l) => filtered.some((e) => e.linea === l)),
     );
     if (!search || selectedInFilter.size === 0) return;
     const toRemove = new Set(
-      filtered.filter((e) => !selectedInFilter.has(e.linea)).map((e) => e.linea)
+      filtered.filter((e) => !selectedInFilter.has(e.linea)).map((e) => e.linea),
     );
     if (toRemove.size === 0) return;
 
@@ -908,17 +1017,14 @@ export default function App() {
     setCanonicalInput("");
 
     const n = toRemove.size;
-    pushToast(
-      `Removed ${n} entr${n !== 1 ? "ies" : "y"} outside selection`,
-      () => {
-        setEntries((prev) => {
-          const next = [...prev, ...removedEntries];
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-          return next;
-        });
-        setShoppingList((prev) => [...prev, ...removedShop]);
-      }
-    );
+    pushToast(`Removed ${n} entr${n !== 1 ? "ies" : "y"} outside selection`, () => {
+      setEntries((prev) => {
+        const next = [...prev, ...removedEntries];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
+      setShoppingList((prev) => [...prev, ...removedShop]);
+    });
   }, [search, filtered, selected, entries, shoppingList, pushToast]);
 
   const deleteSelected = useCallback(() => {
@@ -935,17 +1041,14 @@ export default function App() {
     setShoppingList((prev) => prev.filter((item) => !selected.has(item.linea)));
     setSelected(new Set());
 
-    pushToast(
-      `${n} entr${n > 1 ? "ies" : "y"} deleted`,
-      () => {
-        setEntries((prev) => {
-          const next = [...prev, ...removedEntries];
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-          return next;
-        });
-        setShoppingList((prev) => [...prev, ...removedShop]);
-      }
-    );
+    pushToast(`${n} entr${n > 1 ? "ies" : "y"} deleted`, () => {
+      setEntries((prev) => {
+        const next = [...prev, ...removedEntries];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        return next;
+      });
+      setShoppingList((prev) => [...prev, ...removedShop]);
+    });
   }, [selected, entries, shoppingList, pushToast]);
 
   const downloadJSON = useCallback(() => {
@@ -971,22 +1074,13 @@ export default function App() {
     );
   }
 
-  if (fetchError) {
-    return (
-      <div className="app-full-center">
-        <h1>Shoplist</h1>
-        <p>Could not load the database.</p>
-        <p>Run <code>npm run parse</code> to generate <code>base/productos.json</code></p>
-        <button onClick={() => window.location.reload()}>Retry</button>
-      </div>
-    );
-  }
-
   if (!entries.length) {
     return (
       <div className="app-full-center">
         <h1>Shoplist</h1>
-        <p>No products loaded. Run <code>npm run parse</code> to generate the database.</p>
+        <p>
+          No products loaded. Run <code>npm run parse</code> to generate the database.
+        </p>
       </div>
     );
   }
@@ -1002,16 +1096,26 @@ export default function App() {
           </div>
         </div>
         <div className="status-strip">
-          <span><strong>{summary.total}</strong> entries</span>
-          <span><strong>{summary.withQuantity}</strong> with quantity</span>
-          <span><strong>{shoppingList.length}</strong> in list</span>
+          <span>
+            <strong>{summary.total}</strong> entries
+          </span>
+          <span>
+            <strong>{summary.withQuantity}</strong> with quantity
+          </span>
+          <span>
+            <strong>{shoppingList.length}</strong> in list
+          </span>
         </div>
         <div className="topbar-actions">
           <button
             className="ghost"
             onClick={performUndo}
             disabled={undoStack.length === 0}
-            title={undoStack.length > 0 ? `Undo: ${undoStack[undoStack.length - 1].description}` : "Nothing to undo"}
+            title={
+              undoStack.length > 0
+                ? `Undo: ${undoStack[undoStack.length - 1].description}`
+                : "Nothing to undo"
+            }
           >
             <Undo2 size={16} />
           </button>
@@ -1029,33 +1133,46 @@ export default function App() {
             >
               <Ellipsis size={16} />
             </button>
-            {topMenuOpen && createPortal(
-              <div className="dropdown-menu" style={{ position: "fixed", top: topMenuPos.top, left: topMenuPos.left }}>
-                <button
-                  className="dropdown-item"
-                  onClick={() => { downloadJSON(); setTopMenuOpen(false); }}
+            {topMenuOpen &&
+              createPortal(
+                <div
+                  className="dropdown-menu"
+                  style={{ position: "fixed", top: topMenuPos.top, left: topMenuPos.left }}
                 >
-                  <Download size={16} /> Export database
-                </button>
-                <div className="dropdown-sep" />
-                <button
-                  className="dropdown-item"
-                  onClick={() => { toggleEditMode(); setTopMenuOpen(false); }}
-                >
-                  <Pencil size={16} /> Edit mode
-                  <span className={"toggle-switch" + (editMode ? " active" : "")} />
-                </button>
-                <div className="dropdown-sep" />
-                <button
-                  className="dropdown-item"
-                  onClick={() => { toggleTheme(); setTopMenuOpen(false); }}
-                >
-                  {isDark ? <Sun size={16} /> : <Moon size={16} />}
-                  {isDark ? " Light mode" : " Dark mode"}
-                </button>
-              </div>,
-              document.body,
-            )}
+                  <button
+                    className="dropdown-item"
+                    onClick={() => {
+                      downloadJSON();
+                      setTopMenuOpen(false);
+                    }}
+                  >
+                    <Download size={16} /> Export database
+                  </button>
+                  <div className="dropdown-sep" />
+                  <button
+                    className="dropdown-item"
+                    onClick={() => {
+                      toggleEditMode();
+                      setTopMenuOpen(false);
+                    }}
+                  >
+                    <Pencil size={16} /> Edit mode
+                    <span className={"toggle-switch" + (editMode ? " active" : "")} />
+                  </button>
+                  <div className="dropdown-sep" />
+                  <button
+                    className="dropdown-item"
+                    onClick={() => {
+                      toggleTheme();
+                      setTopMenuOpen(false);
+                    }}
+                  >
+                    {isDark ? <Sun size={16} /> : <Moon size={16} />}
+                    {isDark ? " Light mode" : " Dark mode"}
+                  </button>
+                </div>,
+                document.body,
+              )}
           </div>
         </div>
       </header>
@@ -1085,7 +1202,14 @@ export default function App() {
                 <button
                   key={cat}
                   className={"cat-chip" + (categoryFilter === cat ? " active" : "")}
-                  style={categoryFilter !== cat && getCategoryColors(isDark)[cat] ? { background: getCategoryColors(isDark)[cat].bg, color: getCategoryColors(isDark)[cat].text } : undefined}
+                  style={
+                    categoryFilter !== cat && getCategoryColors(isDark)[cat]
+                      ? {
+                          background: getCategoryColors(isDark)[cat].bg,
+                          color: getCategoryColors(isDark)[cat].text,
+                        }
+                      : undefined
+                  }
                   onClick={() => setCategoryFilter(categoryFilter === cat ? "" : cat)}
                 >
                   {cat}
@@ -1101,26 +1225,29 @@ export default function App() {
                 disabled={filteredSelectedCount === 0}
                 onClick={addToShoppingList}
               >
-                <Plus size={16} /> Add {filteredSelectedCount > 0 ? `(${filteredSelectedCount})` : ""} to list
+                <Plus size={16} /> Add{" "}
+                {filteredSelectedCount > 0 ? `(${filteredSelectedCount})` : ""} to list
               </button>
               {addMsg && <span className="add-msg">{addMsg}</span>}
               {editMode && canKeepSelected && (
                 <button className="btn-keep" onClick={keepSelected}>
-                  <Repeat size={16} /> Keep {filteredSelectedCount} (remove {filtered.length - filteredSelectedCount})
+                  <Repeat size={16} /> Keep {filteredSelectedCount} (remove{" "}
+                  {filtered.length - filteredSelectedCount})
                 </button>
               )}
               {editMode && filteredSelectedCount > 0 && (
-                <button
-                  className="btn-danger"
-                  onClick={deleteSelected}
-                >
+                <button className="btn-danger" onClick={deleteSelected}>
                   <Trash2 size={16} /> Delete ({filteredSelectedCount})
                 </button>
               )}
               {filteredSelectedCount > 0 && (
                 <button
                   className="ghost"
-                  onClick={() => { setSelected(new Set()); setCanonical(null); setCanonicalInput(""); }}
+                  onClick={() => {
+                    setSelected(new Set());
+                    setCanonical(null);
+                    setCanonicalInput("");
+                  }}
                 >
                   <X size={14} /> Clear selection
                 </button>
@@ -1152,30 +1279,47 @@ export default function App() {
                   >
                     Category…
                   </button>
-                  {unifyCatOpen && createPortal(
-                    <div className="dropdown-menu" style={{ position: "fixed", top: unifyCatPos.top, left: unifyCatPos.left }}>
-                      <button
-                        className="dropdown-item"
-                        onClick={() => { assignCategory(""); setUnifyCatOpen(false); }}
+                  {unifyCatOpen &&
+                    createPortal(
+                      <div
+                        className="dropdown-menu"
+                        style={{ position: "fixed", top: unifyCatPos.top, left: unifyCatPos.left }}
                       >
-                        No category
-                      </button>
-                      {CATEGORIES.map((cat) => (
                         <button
-                          key={cat}
                           className="dropdown-item"
-                          onClick={() => { assignCategory(cat); setUnifyCatOpen(false); }}
+                          onClick={() => {
+                            assignCategory("");
+                            setUnifyCatOpen(false);
+                          }}
                         >
-                          <span
-                            className="cat-pop-dot"
-                            style={getCategoryColors(isDark)[cat] ? { background: getCategoryColors(isDark)[cat].bg, color: getCategoryColors(isDark)[cat].text } : undefined}
-                          />
-                          {cat}
+                          No category
                         </button>
-                      ))}
-                    </div>,
-                    document.body,
-                  )}
+                        {CATEGORIES.map((cat) => (
+                          <button
+                            key={cat}
+                            className="dropdown-item"
+                            onClick={() => {
+                              assignCategory(cat);
+                              setUnifyCatOpen(false);
+                            }}
+                          >
+                            <span
+                              className="cat-pop-dot"
+                              style={
+                                getCategoryColors(isDark)[cat]
+                                  ? {
+                                      background: getCategoryColors(isDark)[cat].bg,
+                                      color: getCategoryColors(isDark)[cat].text,
+                                    }
+                                  : undefined
+                              }
+                            />
+                            {cat}
+                          </button>
+                        ))}
+                      </div>,
+                      document.body,
+                    )}
                 </div>
                 {categoryMsg && <span className="cat-msg">{categoryMsg}</span>}
                 <button className="btn-unify" disabled={!canUnify} onClick={unify}>
@@ -1188,8 +1332,12 @@ export default function App() {
           <div className="entry-list" ref={dbListRef}>
             {filtered.length === 0 ? (
               <div className="empty small">
-                <p>No entries found for <strong>"{search}"</strong></p>
-                <button onClick={() => openAddModal(search)}><Plus size={16} /> Add "{search}" as new product</button>
+                <p>
+                  No entries found for <strong>"{search}"</strong>
+                </p>
+                <button onClick={() => openAddModal(search)}>
+                  <Plus size={16} /> Add "{search}" as new product
+                </button>
               </div>
             ) : (
               filtered.map((e) => {
@@ -1277,7 +1425,9 @@ export default function App() {
                           </button>
                         ) : (
                           <span className="entry-status">
-                            <span className="entry-in-mark" title="Already in list"><Check size={14} /></span>
+                            <span className="entry-in-mark" title="Already in list">
+                              <Check size={14} />
+                            </span>
                             <button
                               className="entry-remove-btn"
                               onClick={(ev) => {
@@ -1308,13 +1458,20 @@ export default function App() {
                     )}
                     <button
                       className={"cat-badge" + (e.categoria ? "" : " cat-badge-empty")}
-                      style={e.categoria && getCategoryColors(isDark)[e.categoria] ? { background: getCategoryColors(isDark)[e.categoria].bg, color: getCategoryColors(isDark)[e.categoria].text } : undefined}
+                      style={
+                        e.categoria && getCategoryColors(isDark)[e.categoria]
+                          ? {
+                              background: getCategoryColors(isDark)[e.categoria].bg,
+                              color: getCategoryColors(isDark)[e.categoria].text,
+                            }
+                          : undefined
+                      }
                       onClick={(ev) => {
                         ev.stopPropagation();
                         if (editMode) {
                           openCatPopover(`db-${e.linea}`, ev.currentTarget);
                         } else if (e.categoria) {
-                          setCategoryFilter((prev) => prev === e.categoria ? "" : e.categoria!);
+                          setCategoryFilter((prev) => (prev === e.categoria ? "" : e.categoria!));
                         }
                       }}
                       title={editMode ? "Change category" : "Filter by category"}
@@ -1335,17 +1492,37 @@ export default function App() {
           <div className="panel-header">
             <div>
               <p className="eyebrow">Shopping list</p>
-              <h2>{pending} pending item{pending !== 1 ? "s" : ""}</h2>
+              <h2>
+                {pending} pending item{pending !== 1 ? "s" : ""}
+              </h2>
             </div>
             <div className="panel-header-actions">
-              <button className="ghost" onClick={openSaveModal} disabled={shoppingList.length === 0} title="Save to history">
+              <button
+                className="ghost"
+                onClick={openSaveModal}
+                disabled={shoppingList.length === 0}
+                title="Save to history"
+              >
                 <Save size={16} /> Save
               </button>
-              <button className="ghost" onClick={() => setHistoryOpen(true)} title={`History (${history.length})`}>
-                <History size={16} /> {history.length > 0 && <span className="history-badge">{history.length}</span>}
+              <button
+                className="ghost"
+                onClick={() => setHistoryOpen(true)}
+                title={`History (${history.length})`}
+              >
+                <History size={16} />{" "}
+                {history.length > 0 && <span className="history-badge">{history.length}</span>}
               </button>
               <button className="btn-primary" onClick={copyShoppingList} disabled={pending === 0}>
-                {copied ? <><Check size={16} /> Copied</> : <><ClipboardCopy size={16} /> Copy list</>}
+                {copied ? (
+                  <>
+                    <Check size={16} /> Copied
+                  </>
+                ) : (
+                  <>
+                    <ClipboardCopy size={16} /> Copy list
+                  </>
+                )}
               </button>
               <div className="dropdown">
                 <button
@@ -1362,46 +1539,77 @@ export default function App() {
                 >
                   <Ellipsis size={16} />
                 </button>
-                {shoppingMenuOpen && createPortal(
-                  <div className="dropdown-menu" style={{ position: "fixed", top: shoppingMenuPos.top, left: shoppingMenuPos.left }}>
-                    <button
-                      className="dropdown-item"
-                      onClick={() => { setGroupByCategory(!groupByCategory); setShoppingMenuOpen(false); }}
+                {shoppingMenuOpen &&
+                  createPortal(
+                    <div
+                      className="dropdown-menu"
+                      style={{
+                        position: "fixed",
+                        top: shoppingMenuPos.top,
+                        left: shoppingMenuPos.left,
+                      }}
                     >
-                      {groupByCategory ? <><List size={16} /> Free list</> : <><LayoutGrid size={16} /> Group by category</>}
-                    </button>
-                    <div className="dropdown-sep" />
-                    <button
-                      className="dropdown-item"
-                      onClick={() => { clearCheckedItems(); setShoppingMenuOpen(false); }}
-                      disabled={shoppingList.filter((i) => i.checked).length === 0}
-                    >
-                      <Trash2 size={16} /> Remove checked
-                    </button>
-                    <button
-                      className="dropdown-item dropdown-item-danger"
-                      onClick={() => { clearAllItems(); setShoppingMenuOpen(false); }}
-                      disabled={shoppingList.length === 0}
-                    >
-                      <Trash2 size={16} /> Clear all
-                    </button>
-                    <div className="dropdown-sep" />
-                    <button
-                      className="dropdown-item"
-                      onClick={() => { downloadList(); setShoppingMenuOpen(false); }}
-                      disabled={shoppingList.length === 0}
-                    >
-                      <Download size={16} /> Download list
-                    </button>
-                    <button
-                      className="dropdown-item"
-                      onClick={() => { loadListFromFile(); setShoppingMenuOpen(false); }}
-                    >
-                      <FolderOpen size={16} /> Load list
-                    </button>
-                  </div>,
-                  document.body,
-                )}
+                      <button
+                        className="dropdown-item"
+                        onClick={() => {
+                          setGroupByCategory(!groupByCategory);
+                          setShoppingMenuOpen(false);
+                        }}
+                      >
+                        {groupByCategory ? (
+                          <>
+                            <List size={16} /> Free list
+                          </>
+                        ) : (
+                          <>
+                            <LayoutGrid size={16} /> Group by category
+                          </>
+                        )}
+                      </button>
+                      <div className="dropdown-sep" />
+                      <button
+                        className="dropdown-item"
+                        onClick={() => {
+                          clearCheckedItems();
+                          setShoppingMenuOpen(false);
+                        }}
+                        disabled={shoppingList.filter((i) => i.checked).length === 0}
+                      >
+                        <Trash2 size={16} /> Remove checked
+                      </button>
+                      <button
+                        className="dropdown-item dropdown-item-danger"
+                        onClick={() => {
+                          clearAllItems();
+                          setShoppingMenuOpen(false);
+                        }}
+                        disabled={shoppingList.length === 0}
+                      >
+                        <Trash2 size={16} /> Clear all
+                      </button>
+                      <div className="dropdown-sep" />
+                      <button
+                        className="dropdown-item"
+                        onClick={() => {
+                          downloadList();
+                          setShoppingMenuOpen(false);
+                        }}
+                        disabled={shoppingList.length === 0}
+                      >
+                        <Download size={16} /> Download list
+                      </button>
+                      <button
+                        className="dropdown-item"
+                        onClick={() => {
+                          loadListFromFile();
+                          setShoppingMenuOpen(false);
+                        }}
+                      >
+                        <FolderOpen size={16} /> Load list
+                      </button>
+                    </div>,
+                    document.body,
+                  )}
               </div>
               <input
                 ref={fileInputRef}
@@ -1416,14 +1624,22 @@ export default function App() {
           <div className="entry-list">
             {shoppingList.length === 0 ? (
               <div className="empty small">
-                <p>Search for products in the database and add them with <Plus size={14} style={{ verticalAlign: "middle" }} /></p>
+                <p>
+                  Search for products in the database and add them with{" "}
+                  <Plus size={14} style={{ verticalAlign: "middle" }} />
+                </p>
               </div>
             ) : shoppingGrouped ? (
               shoppingGrouped.map(([cat, items]) => (
                 <div key={cat} className="group-section">
-                  <div className="group-header">{cat} <span className="group-count">{items.length}</span></div>
+                  <div className="group-header">
+                    {cat} <span className="group-count">{items.length}</span>
+                  </div>
                   {items.map((item) => (
-                    <article key={item.id} className={"entry" + (item.checked ? " entry-tachado" : "")}>
+                    <article
+                      key={item.id}
+                      className={"entry" + (item.checked ? " entry-tachado" : "")}
+                    >
                       <input
                         type="checkbox"
                         className="entry-check"
@@ -1458,7 +1674,9 @@ export default function App() {
                   onDrop={(e) => handleDrop(e, idx)}
                   onDragEnd={handleDragEnd}
                 >
-                  <span className="drag-handle"><GripVertical size={16} /></span>
+                  <span className="drag-handle">
+                    <GripVertical size={16} />
+                  </span>
                   <input
                     type="checkbox"
                     className="entry-check"
@@ -1469,7 +1687,14 @@ export default function App() {
                   {item.categoria && (
                     <span
                       className="cat-tag"
-                      style={getCategoryColors(isDark)[item.categoria] ? { background: getCategoryColors(isDark)[item.categoria].bg, color: getCategoryColors(isDark)[item.categoria].text } : undefined}
+                      style={
+                        getCategoryColors(isDark)[item.categoria]
+                          ? {
+                              background: getCategoryColors(isDark)[item.categoria].bg,
+                              color: getCategoryColors(isDark)[item.categoria].text,
+                            }
+                          : undefined
+                      }
                     >
                       {item.categoria}
                     </span>
@@ -1518,7 +1743,9 @@ export default function App() {
               value={newProductName}
               onChange={(e) => setNewProductName(e.target.value)}
               autoFocus
-              onKeyDown={(e) => { if (e.key === "Enter") addNewProduct(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addNewProduct();
+              }}
             />
             <div className="dropdown" style={{ position: "relative" }}>
               <button
@@ -1535,24 +1762,58 @@ export default function App() {
                 {newProductCategory || "No category"}
               </button>
               {addModalCatOpen && (
-                <div className="dropdown-menu" style={{ position: "fixed", top: addModalCatPos.top, left: addModalCatPos.left, zIndex: 301 }}>
+                <div
+                  className="dropdown-menu"
+                  style={{
+                    position: "fixed",
+                    top: addModalCatPos.top,
+                    left: addModalCatPos.left,
+                    zIndex: 301,
+                  }}
+                >
                   <button
-                    className={"dropdown-item" + (!newProductCategory ? " dropdown-item-active" : "")}
-                    onClick={() => { setNewProductCategory(""); setAddModalCatOpen(false); }}
+                    className={
+                      "dropdown-item" + (!newProductCategory ? " dropdown-item-active" : "")
+                    }
+                    onClick={() => {
+                      setNewProductCategory("");
+                      setAddModalCatOpen(false);
+                    }}
                   >
-                    {!newProductCategory && <span className="cat-pop-check"><Check size={14} /></span>}
+                    {!newProductCategory && (
+                      <span className="cat-pop-check">
+                        <Check size={14} />
+                      </span>
+                    )}
                     No category
                   </button>
                   {CATEGORIES.map((cat) => (
                     <button
                       key={cat}
-                      className={"dropdown-item" + (newProductCategory === cat ? " dropdown-item-active" : "")}
-                      onClick={() => { setNewProductCategory(cat); setAddModalCatOpen(false); }}
+                      className={
+                        "dropdown-item" +
+                        (newProductCategory === cat ? " dropdown-item-active" : "")
+                      }
+                      onClick={() => {
+                        setNewProductCategory(cat);
+                        setAddModalCatOpen(false);
+                      }}
                     >
-                      {newProductCategory === cat && <span className="cat-pop-check"><Check size={14} /></span>}
+                      {newProductCategory === cat && (
+                        <span className="cat-pop-check">
+                          <Check size={14} />
+                        </span>
+                      )}
                       <span
                         className="cat-pop-dot"
-                        style={getCategoryColors(isDark)[cat] ? { background: getCategoryColors(isDark)[cat].bg, color: getCategoryColors(isDark)[cat].text } : undefined}
+                        style={
+                          getCategoryColors(isDark)[cat]
+                            ? {
+                                background: getCategoryColors(isDark)[cat].bg,
+                                color: getCategoryColors(isDark)[cat].text,
+                              }
+                            : undefined
+                        }
                       />
                       {cat}
                     </button>
@@ -1576,7 +1837,8 @@ export default function App() {
         <div className="modal-overlay" onClick={() => setClearAllConfirm(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <p className="modal-msg">
-              Clear all <strong>{shoppingList.length}</strong> item{shoppingList.length !== 1 ? "s" : ""} from the list?
+              Clear all <strong>{shoppingList.length}</strong> item
+              {shoppingList.length !== 1 ? "s" : ""} from the list?
             </p>
             <div className="modal-actions">
               <button className="ghost" onClick={() => setClearAllConfirm(false)}>
@@ -1594,18 +1856,27 @@ export default function App() {
         <div className="modal-overlay" onClick={() => setShowSaveModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2 className="modal-title">Save to history</h2>
-            <p className="modal-msg" style={{ fontSize: "0.82rem", color: "var(--muted)" }}>{shoppingList.length} items will be saved. Checked state is preserved.</p>
+            <p className="modal-msg" style={{ fontSize: "0.82rem", color: "var(--muted)" }}>
+              {shoppingList.length} items will be saved. Checked state is preserved.
+            </p>
             <input
               type="text"
               className="modal-input"
               value={historyNameDraft}
               onChange={(e) => setHistoryNameDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") confirmSaveToHistory(); if (e.key === "Escape") setShowSaveModal(false); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmSaveToHistory();
+                if (e.key === "Escape") setShowSaveModal(false);
+              }}
               autoFocus
             />
             <div className="modal-actions">
-              <button className="ghost" onClick={() => setShowSaveModal(false)}>Cancel</button>
-              <button disabled={!historyNameDraft.trim()} onClick={confirmSaveToHistory}><Save size={16} /> Save</button>
+              <button className="ghost" onClick={() => setShowSaveModal(false)}>
+                Cancel
+              </button>
+              <button disabled={!historyNameDraft.trim()} onClick={confirmSaveToHistory}>
+                <Save size={16} /> Save
+              </button>
             </div>
           </div>
         </div>
@@ -1614,101 +1885,194 @@ export default function App() {
       {deleteHistoryConfirm && (
         <div className="modal-overlay" onClick={() => setDeleteHistoryConfirm(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <p className="modal-msg">Delete <strong>{history.find((h) => h.id === deleteHistoryConfirm)?.name}</strong> from history?</p>
+            <p className="modal-msg">
+              Delete <strong>{history.find((h) => h.id === deleteHistoryConfirm)?.name}</strong>{" "}
+              from history?
+            </p>
             <div className="modal-actions">
-              <button className="ghost" onClick={() => setDeleteHistoryConfirm(null)}>Cancel</button>
-              <button className="btn-unify" onClick={() => deleteHistoryEntry(deleteHistoryConfirm)}>Delete</button>
+              <button className="ghost" onClick={() => setDeleteHistoryConfirm(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn-unify"
+                onClick={() => deleteHistoryEntry(deleteHistoryConfirm)}
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {historyOpen && createPortal(
-        <div className="modal-overlay" onClick={() => setHistoryOpen(false)}>
-          <div className="history-drawer" onClick={(e) => e.stopPropagation()}>
-            <div className="history-header">
-              <div>
-                <h2 className="modal-title"><History size={16} style={{ verticalAlign: "middle" }} /> Purchase history</h2>
-                <p className="history-subtitle">{history.length} saved list{history.length !== 1 ? "s" : ""}</p>
+      {historyOpen &&
+        createPortal(
+          <div className="modal-overlay" onClick={() => setHistoryOpen(false)}>
+            <div className="history-drawer" onClick={(e) => e.stopPropagation()}>
+              <div className="history-header">
+                <div>
+                  <h2 className="modal-title">
+                    <History size={16} style={{ verticalAlign: "middle" }} /> Purchase history
+                  </h2>
+                  <p className="history-subtitle">
+                    {history.length} saved list{history.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <button className="ghost" onClick={() => setHistoryOpen(false)}>
+                  <X size={16} />
+                </button>
               </div>
-              <button className="ghost" onClick={() => setHistoryOpen(false)}><X size={16} /></button>
-            </div>
-            <div className="history-search">
-              <Search size={14} />
-              <input type="search" placeholder="Search history…" value={historyQuery} onChange={(e) => setHistoryQuery(e.target.value)} />
-            </div>
-            <div className="history-list">
-              {filteredHistory.length === 0 ? (
-                <div className="empty small">
-                  <p>{history.length === 0 ? "No saved purchases yet. Use Save to store your current list." : `No results for "${historyQuery}"`}</p>
-                </div>
-              ) : filteredHistory.map((h) => (
-                <div key={h.id} className="history-card">
-                  <div className="history-card-head">
-                    {renamingId === h.id ? (
-                      <input className="modal-input" value={renamingValue} onChange={(e) => setRenamingValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") renameHistoryEntry(h.id, renamingValue); if (e.key === "Escape") setRenamingId(null); }} onBlur={() => renameHistoryEntry(h.id, renamingValue)} autoFocus />
-                    ) : (
-                      <strong className="history-card-name" title={h.name}>{h.name}</strong>
-                    )}
-                    <span className="history-card-date">{new Date(h.date).toLocaleString()}</span>
-                  </div>
-                  <div className="history-card-meta">{h.items.length} items{ h.items.filter((i) => i.checked).length > 0 ? ` · ${h.items.filter((i) => i.checked).length} checked` : ""}</div>
-                  <div className="history-card-preview">{h.items.slice(0, 3).map((i) => i.original).join(" · ")}{h.items.length > 3 ? ` +${h.items.length - 3} more` : ""}</div>
-                  <div className="history-card-actions">
-                    <button onClick={() => loadFromHistory(h.id, "replace")}><ArchiveRestore size={14} /> Load</button>
-                    <button className="ghost" onClick={() => loadFromHistory(h.id, "append")}><Plus size={14} /> Append</button>
-                    <button className="ghost" onClick={() => downloadHistoryEntry(h.id)}><Download size={14} /></button>
-                    {renamingId !== h.id && <button className="ghost" onClick={() => { setRenamingId(h.id); setRenamingValue(h.name); }}><Pencil size={14} /></button>}
-                    <button className="ghost btn-danger" onClick={() => setDeleteHistoryConfirm(h.id)}><Trash2 size={14} /></button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {catPopover && createPortal((() => {
-        const linea = parseInt(catPopover.replace(/^(db|sl)-/, ""));
-        const currentEntry = entries.find((e) => e.linea === linea);
-        const currentCat = currentEntry?.categoria ?? "";
-        return (
-          <div
-            className="cat-popover"
-            style={{ position: "fixed", top: catPopoverPos.top, left: catPopoverPos.left }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className={"cat-pop-item cat-pop-clear" + (!currentCat ? " cat-pop-active" : "")}
-              onClick={() => {
-                setCategoryItem(linea, "");
-                setCatPopover(null);
-              }}
-            >
-              {!currentCat && <span className="cat-pop-check"><Check size={14} /></span>}
-              No category
-            </button>
-            {CATEGORIES.map((c) => (
-              <button
-                key={c}
-                className={"cat-pop-item" + (currentCat === c ? " cat-pop-active" : "")}
-                onClick={() => {
-                  setCategoryItem(linea, c);
-                  setCatPopover(null);
-                }}
-              >
-                {currentCat === c && <span className="cat-pop-check"><Check size={14} /></span>}
-                <span
-                  className="cat-pop-dot"
-                  style={getCategoryColors(isDark)[c] ? { background: getCategoryColors(isDark)[c].bg, color: getCategoryColors(isDark)[c].text } : undefined}
+              <div className="history-search">
+                <Search size={14} />
+                <input
+                  type="search"
+                  placeholder="Search history…"
+                  value={historyQuery}
+                  onChange={(e) => setHistoryQuery(e.target.value)}
                 />
-                {c}
-              </button>
-            ))}
-          </div>
-        );
-      })(), document.body)}
+              </div>
+              <div className="history-list">
+                {filteredHistory.length === 0 ? (
+                  <div className="empty small">
+                    <p>
+                      {history.length === 0
+                        ? "No saved purchases yet. Use Save to store your current list."
+                        : `No results for "${historyQuery}"`}
+                    </p>
+                  </div>
+                ) : (
+                  filteredHistory.map((h) => (
+                    <div key={h.id} className="history-card">
+                      <div className="history-card-head">
+                        {renamingId === h.id ? (
+                          <input
+                            className="modal-input"
+                            value={renamingValue}
+                            onChange={(e) => setRenamingValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") renameHistoryEntry(h.id, renamingValue);
+                              if (e.key === "Escape") setRenamingId(null);
+                            }}
+                            onBlur={() => renameHistoryEntry(h.id, renamingValue)}
+                            autoFocus
+                          />
+                        ) : (
+                          <strong className="history-card-name" title={h.name}>
+                            {h.name}
+                          </strong>
+                        )}
+                        <span className="history-card-date">
+                          {new Date(h.date).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="history-card-meta">
+                        {h.items.length} items
+                        {h.items.filter((i) => i.checked).length > 0
+                          ? ` · ${h.items.filter((i) => i.checked).length} checked`
+                          : ""}
+                      </div>
+                      <div className="history-card-preview">
+                        {h.items
+                          .slice(0, 3)
+                          .map((i) => i.original)
+                          .join(" · ")}
+                        {h.items.length > 3 ? ` +${h.items.length - 3} more` : ""}
+                      </div>
+                      <div className="history-card-actions">
+                        <button onClick={() => loadFromHistory(h.id, "replace")}>
+                          <ArchiveRestore size={14} /> Load
+                        </button>
+                        <button className="ghost" onClick={() => loadFromHistory(h.id, "append")}>
+                          <Plus size={14} /> Append
+                        </button>
+                        <button className="ghost" onClick={() => downloadHistoryEntry(h.id)}>
+                          <Download size={14} />
+                        </button>
+                        {renamingId !== h.id && (
+                          <button
+                            className="ghost"
+                            onClick={() => {
+                              setRenamingId(h.id);
+                              setRenamingValue(h.name);
+                            }}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                        <button
+                          className="ghost btn-danger"
+                          onClick={() => setDeleteHistoryConfirm(h.id)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {catPopover &&
+        createPortal(
+          (() => {
+            const linea = parseInt(catPopover.replace(/^(db|sl)-/, ""));
+            const currentEntry = entries.find((e) => e.linea === linea);
+            const currentCat = currentEntry?.categoria ?? "";
+            return (
+              <div
+                className="cat-popover"
+                style={{ position: "fixed", top: catPopoverPos.top, left: catPopoverPos.left }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  className={"cat-pop-item cat-pop-clear" + (!currentCat ? " cat-pop-active" : "")}
+                  onClick={() => {
+                    setCategoryItem(linea, "");
+                    setCatPopover(null);
+                  }}
+                >
+                  {!currentCat && (
+                    <span className="cat-pop-check">
+                      <Check size={14} />
+                    </span>
+                  )}
+                  No category
+                </button>
+                {CATEGORIES.map((c) => (
+                  <button
+                    key={c}
+                    className={"cat-pop-item" + (currentCat === c ? " cat-pop-active" : "")}
+                    onClick={() => {
+                      setCategoryItem(linea, c);
+                      setCatPopover(null);
+                    }}
+                  >
+                    {currentCat === c && (
+                      <span className="cat-pop-check">
+                        <Check size={14} />
+                      </span>
+                    )}
+                    <span
+                      className="cat-pop-dot"
+                      style={
+                        getCategoryColors(isDark)[c]
+                          ? {
+                              background: getCategoryColors(isDark)[c].bg,
+                              color: getCategoryColors(isDark)[c].text,
+                            }
+                          : undefined
+                      }
+                    />
+                    {c}
+                  </button>
+                ))}
+              </div>
+            );
+          })(),
+          document.body,
+        )}
 
       <div className="toast-stack">
         {toasts.map((t) => (
