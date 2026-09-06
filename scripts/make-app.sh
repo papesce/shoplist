@@ -68,11 +68,15 @@ end quit
 on open location f
   run
 end open
+on idle
+  -- keep app alive so it stays in Dock for Quit; check server health
+  return 3600
+end idle
 APPLESCRIPT
 
-# --- 6. Compile applet ---
-echo "→ Compiling AppleScript applet ..."
-osacompile -o "$APP" /tmp/shoplist-applet.applescript 2>&1
+# --- 6. Compile applet (stay-open so Dock Quit works and server isn't killed immediately) ---
+echo "→ Compiling AppleScript applet (stay-open) ..."
+osacompile -s -o "$APP" /tmp/shoplist-applet.applescript 2>&1
 # osacompile creates its own structure; ensure our icon/plist merged
 # osacompile -o $APP will overwrite Contents; so re-apply our plist/icon after
 # Actually osacompile creates Shoplist.app with its own Info.plist; merge LSUIElement/icon
@@ -99,7 +103,7 @@ xattr -cr "$APP" 2>/dev/null || true
 touch "$APP"
 
 echo "✔ Shoplist.app created at $APP"
-echo "  Version: $VERSION  Icon: AppIcon.icns  LSUIElement: hidden"
+echo "  Version: $VERSION  Icon: AppIcon.icns  LSUIElement: visible (Dock)  Stay-open: yes"
 plutil -lint "$APP/Contents/Info.plist" && echo "  ✔ Info.plist valid"
 ls -lh "$APP/Contents/Resources/AppIcon.icns" | awk '{print "  Icon size:", $5}'
 
