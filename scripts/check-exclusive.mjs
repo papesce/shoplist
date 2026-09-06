@@ -52,13 +52,13 @@ if (mode === "dev") {
       });
       if (r.ok)
         fail(
-          `Preview/server already running on :${PORT_API}. Run ./shopier.sh stop before starting preview.`,
+          `Preview/server already running on :${PORT_API}. Run lsof -ti :${PORT_API} | xargs kill before starting preview.`,
         );
     } catch {
       /* port in use but not our server - still warn */
       if (isPortInUse(PORT_API))
         fail(
-          `Something is already listening on :${PORT_API}. Run ./shopier.sh stop or free the port before starting preview.`,
+          `Something is already listening on :${PORT_API}. Run lsof -ti :${PORT_API} | xargs kill or free the port before starting preview.`,
         );
     }
   }

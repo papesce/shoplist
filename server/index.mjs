@@ -111,7 +111,7 @@ server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
     console.error(`[server] ✘ Port ${PORT} already in use.`);
     console.error(
-      `[server] Preview/dev is already running on :${PORT}. Run ./shopier.sh stop to free it, then retry.`,
+      `[server] Preview/dev is already running on :${PORT}. Run lsof -ti :${PORT} | xargs kill to free it, then retry.`,
     );
     process.exit(1);
   }

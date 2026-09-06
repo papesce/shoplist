@@ -7,14 +7,14 @@ Static tool to turn household purchase history into a predictive shopping list.
 ### Development (recommended)
 
 ```bash
-./shopier.sh dev          # start Vite at http://localhost:5173
-./shopier.sh dev --open   # + open browser
-./shopier.sh build        # production build → dist/
-./shopier.sh preview      # serve production build
+npm run dev          # start Vite at http://localhost:5173
+npm run dev -- --open   # + open browser
+npm run build        # production build → dist/
+npm run preview      # serve production build (DB at base/shoplist.db)
+npm run server       # API + static on :4173
 ```
 
-Requires Node.js 18+ / npm. First `dev`/`build` auto-installs dependencies if `node_modules/` is missing.
-Direct npm equivalents: `npm install`, `npm run dev`, `npm run build`, `npm run preview`.
+Requires Node.js 18+ / npm.
 
 ### Static (legacy)
 
@@ -32,7 +32,7 @@ Open `dist/index.html` after `npm run build`, or the old `base/` static version 
 
 ## Data
 
-- `base/base-datos.txt` → raw history (git-ignored). Run `npm run parse` or `./shopier.sh parse` to regenerate `base/productos.json`.
+- `base/base-datos.txt` → raw history (git-ignored). Run `npm run parse` to regenerate `base/productos.json`.
 - `src/types.ts` / `src/App.tsx` → `catalog`, `modes`, `history` (products, aliases, sections, frequencies used for ranking/prediction).
 
 To adapt it to your real purchase history, edit:

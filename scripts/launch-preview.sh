@@ -65,7 +65,7 @@ fi
 # Exclusive-mode guard: refuse if dev is running (unless FORCE=1)
 if [[ "${FORCE:-0}" != "1" ]] && lsof -ti :5173 >/dev/null 2>&1; then
   echo "ERROR: Dev mode is running on :5173. Stop dev before launching preview."
-  echo "  → ./shopier.sh stop  or  lsof -ti :5173 | xargs kill -9"
+  echo "  → lsof -ti :5173 | xargs kill -9  (or close the dev terminal)"
   echo "  (set FORCE=1 to override)"
   osascript -e 'display alert "Shoplist" message "Dev está corriendo en :5173. Detenelo antes de iniciar preview." as critical' || true
   exit 1
@@ -80,7 +80,7 @@ if lsof -ti :"$PORT" >/dev/null 2>&1; then
   else
     # Check if it's a healthy preview - if so, don't auto-kill; tell user to stop
     if curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
-      echo "ERROR: Preview already running on :$PORT. Run ./shopier.sh stop first."
+      echo "ERROR: Preview already running on :$PORT. Run lsof -ti :$PORT | xargs kill first."
       exit 1
     fi
     echo "Killing stale process on :$PORT"
